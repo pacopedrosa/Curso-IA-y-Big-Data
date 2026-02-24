@@ -1,0 +1,6 @@
+id,producto,categoria,precio,cantidad,fecha
+1,Zapatos,Calzado,50.00,3,2025-01-01
+2,Camiseta,Ropa,15.00,5,2025-01-02
+3,Pantalón,Ropa,25.00,2,2025-01-02
+4,Zapatos,Calzado,50.00,1,2025-01-03
+5,Bolso,Accesorios,30.00,4,2025-01-04
