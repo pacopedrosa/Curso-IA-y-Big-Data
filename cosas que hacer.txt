@@ -1,0 +1,4 @@
+- Hacer curso machine learning foundations AWS
+- Hacer laboratorio T4
+- Hacer cuestionarios T4
+- Ver las clases que no me vi (T3) y la resolución de los laboratorios
