@@ -1,4 +1,3 @@
 - Hacer curso machine learning foundations AWS
 - Ver las clases que no me vi (T3) y la resolución de los laboratorios
-- Preparar texto del proyecto final
 - Hacer trabajos de enfoque
