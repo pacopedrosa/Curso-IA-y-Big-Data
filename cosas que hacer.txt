@@ -1,5 +1,6 @@
 - Hacer curso machine learning foundations AWS
-- Hacer laboratorio T4 big data
 - Ver las clases que no me vi (T3) y la resolución de los laboratorios
-- Preparar texto del proyecto final
 - Hacer trabajos de enfoque
+- Ver clase de sistemas de aprendizaje automatico T5
+- Hacer laboratorios tema 5
+- Hacer cuestionarios tema 5
