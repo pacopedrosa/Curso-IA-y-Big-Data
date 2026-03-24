@@ -1,0 +1,184 @@
+version: '3.8'
+# SmartManuTech — Plataforma Big Data IoT Industrial
+# Flujo: Productores IoT → Kafka → Consumer Python → Cassandra + InfluxDB → Grafana
+
+networks:
+  bigdata_net:
+    driver: bridge
+
+volumes:
+  cassandra_data:
+  influxdb_data:
+  grafana_data:
+
+services:
+
+  # ── MENSAJERÍA ──────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: bigdata-zookeeper
+    hostname: zookeeper
+    networks: [bigdata_net]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | timeout 2 bash -c 'cat < /dev/null > /dev/tcp/localhost/2181' && echo ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: bigdata-kafka
+    hostname: kafka
+    networks: [bigdata_net]
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "${KAFKA_EXTERNAL_PORT}:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://${KAFKA_EXTERNAL_HOST}:${KAFKA_EXTERNAL_PORT}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── ALMACENAMIENTO ──────────────────────────────────────────────────
+  cassandra:
+    image: cassandra:4.1
+    container_name: bigdata-cassandra
+    hostname: cassandra
+    networks: [bigdata_net]
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    environment:
+      CASSANDRA_CLUSTER_NAME: ${CASSANDRA_CLUSTER_NAME}
+      CASSANDRA_DC: datacenter1
+      CASSANDRA_RACK: rack1
+      HEAP_NEWSIZE: 128M
+      MAX_HEAP_SIZE: 512M
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: bigdata-influxdb
+    hostname: influxdb
+    networks: [bigdata_net]
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_ADMIN_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ── VISUALIZACIÓN ───────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: bigdata-grafana
+    hostname: grafana
+    networks: [bigdata_net]
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    ports:
+      - "${GRAFANA_EXTERNAL_PORT}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./dashboard/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./dashboard/grafana-dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml
+      - ./dashboard/smartmanutech-dashboard.json:/var/lib/grafana/dashboards/smartmanutech-dashboard.json
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/smartmanutech-dashboard.json
+      # Estas variables las lee grafana-datasource.yml para conectar con InfluxDB
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+
+  # ── APLICACIONES PYTHON ─────────────────────────────────────────────
+  producer:
+    build:
+      context: .
+      dockerfile: producer/Dockerfile
+    container_name: bigdata-producer
+    networks: [bigdata_net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: on-failure
+
+  consumer:
+    build:
+      context: .
+      dockerfile: consumer/Dockerfile
+    container_name: bigdata-consumer
+    networks: [bigdata_net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      cassandra:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      CASSANDRA_HOST: cassandra
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+    restart: on-failure
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: bigdata-api
+    networks: [bigdata_net]
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    ports:
+      - "${API_EXTERNAL_PORT}:8000"
+    environment:
+      CASSANDRA_HOST: cassandra
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+    restart: on-failure
