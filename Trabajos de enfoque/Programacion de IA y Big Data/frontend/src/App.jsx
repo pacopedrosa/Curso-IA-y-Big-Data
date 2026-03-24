@@ -179,6 +179,7 @@ function App() {
 
 
 // Estilos en línea para simplicidad, pero podrían extraerse a un archivo CSS o usar una librería de estilos como tailwind.
+// De igual manera pasaria con los componentes que podrian ser de la libreria de shadocn para poder conseguir una mejor vista
 const styles = {
   app: { fontFamily: 'sans-serif', minHeight: '100vh', background: '#f5f6fa' },
   header: { background: '#1a1a2e', color: 'white', padding: '2rem', textAlign: 'center' },
