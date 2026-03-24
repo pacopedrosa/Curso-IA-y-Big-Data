@@ -177,6 +177,8 @@ function App() {
   )
 }
 
+
+// Estilos en línea para simplicidad, pero podrían extraerse a un archivo CSS o usar una librería de estilos como tailwind.
 const styles = {
   app: { fontFamily: 'sans-serif', minHeight: '100vh', background: '#f5f6fa' },
   header: { background: '#1a1a2e', color: 'white', padding: '2rem', textAlign: 'center' },
