@@ -75,7 +75,7 @@ asistente-soporte-tecnico/
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/usuario/asistente-soporte-tecnico.git
+git clone https://github.com/pacopedrosa/asistente-soporte-tecnico.git
 cd asistente-soporte-tecnico
 ```
 

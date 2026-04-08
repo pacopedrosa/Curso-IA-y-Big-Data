@@ -1,0 +1,51 @@
+course_id,name,category,level,avg_rating,duration_h
+C001,Python para principiantes,Programación,básico,4.5,11.4
+C002,Python avanzado,Programación,avanzado,4.7,30.8
+C003,JavaScript moderno,Programación,intermedio,4.3,20.5
+C004,TypeScript desde cero,Programación,básico,4.2,7.2
+C005,React.js completo,Programación,intermedio,4.6,29.7
+C006,Node.js y Express,Programación,intermedio,4.4,28.5
+C007,Java para backend,Programación,intermedio,4.1,32.8
+C008,Algoritmos y estructuras,Programación,avanzado,4.8,32.6
+C009,SQL desde cero,Data Science,básico,4.3,9.2
+C010,PostgreSQL avanzado,Data Science,avanzado,4.5,30.9
+C011,Introducción a ML,Data Science,básico,4.6,7.2
+C012,Machine Learning avanzado,Data Science,avanzado,4.9,45.2
+C013,Deep Learning con PyTorch,Data Science,avanzado,4.8,30.8
+C014,Pandas y NumPy,Data Science,básico,4.4,7.0
+C015,Visualización con Matplotlib,Data Science,básico,4.2,11.5
+C016,Power BI para analistas,Data Science,intermedio,4.3,25.9
+C017,Estadística para DS,Data Science,intermedio,4.5,19.4
+C018,NLP con Python,Data Science,avanzado,4.7,47.7
+C019,Computer Vision,Data Science,avanzado,4.6,54.3
+C020,Big Data con Spark,Data Science,avanzado,4.5,30.2
+C021,Docker para devs,DevOps,básico,4.4,13.1
+C022,Kubernetes en producción,DevOps,avanzado,4.6,50.9
+C023,CI/CD con GitHub Actions,DevOps,intermedio,4.3,21.8
+C024,Terraform y AWS,DevOps,avanzado,4.5,34.7
+C025,Linux para desarrolladores,DevOps,básico,4.2,14.6
+C026,Monitorización con Grafana,DevOps,intermedio,4.1,21.7
+C027,Seguridad en aplicaciones,DevOps,avanzado,4.7,32.8
+C028,Microservicios con FastAPI,DevOps,intermedio,4.5,16.9
+C029,UI/UX Fundamentos,Diseño,básico,4.3,13.5
+C030,Figma profesional,Diseño,intermedio,4.4,27.1
+C031,Diseño responsive,Diseño,básico,4.2,13.1
+C032,Motion Design,Diseño,avanzado,4.3,51.9
+C033,Branding digital,Diseño,intermedio,4.1,25.7
+C034,Photoshop avanzado,Diseño,avanzado,4.0,59.2
+C035,Ilustración vectorial,Diseño,intermedio,4.2,22.6
+C036,Marketing digital,Negocios,básico,4.3,10.5
+C037,SEO y SEM,Negocios,intermedio,4.4,31.6
+C038,Google Analytics 4,Negocios,básico,4.2,11.2
+C039,Gestión ágil con Scrum,Negocios,básico,4.5,13.6
+C040,Finanzas para emprendedores,Negocios,básico,4.1,10.8
+C041,Liderazgo y equipos remotos,Negocios,intermedio,4.3,29.1
+C042,Product Management,Negocios,avanzado,4.6,31.4
+C043,Copywriting efectivo,Negocios,básico,4.2,7.3
+C044,Inglés para TI,Idiomas,básico,4.5,7.9
+C045,Inglés avanzado,Idiomas,avanzado,4.4,32.4
+C046,Inglés para negocios,Idiomas,intermedio,4.3,19.7
+C047,Alemán básico,Idiomas,básico,4.1,6.0
+C048,Francés intermedio,Idiomas,intermedio,4.2,20.6
+C049,Chino mandarín básico,Idiomas,básico,4.0,11.4
+C050,Portugués para negocios,Idiomas,básico,4.1,8.6
