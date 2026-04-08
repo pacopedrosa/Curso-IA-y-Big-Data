@@ -1,0 +1,258 @@
+{
+  "intents": [
+    {
+      "tag": "saludo",
+      "description": "Saludos iniciales al asistente",
+      "patterns": [
+        "hola", "buenos días", "buenas tardes", "buenas noches", "hey",
+        "hola qué tal", "buenas", "saludos", "hola necesito ayuda",
+        "hi", "hello", "buen día", "qué tal", "hola cómo estás",
+        "buenas qué tal", "hola asistente", "hola bot", "necesito ayuda"
+      ],
+      "responses": [
+        "¡Hola! Soy el Asistente Virtual de Soporte Técnico. ¿En qué puedo ayudarte hoy?",
+        "¡Buenos días! Estoy aquí para ayudarte con cualquier problema técnico. ¿Cuál es tu consulta?",
+        "¡Hola! Bienvenido al soporte técnico. ¿Qué problema estás experimentando?"
+      ]
+    },
+    {
+      "tag": "despedida",
+      "description": "Cierre de conversación",
+      "patterns": [
+        "adiós", "hasta luego", "chao", "bye", "nos vemos", "hasta pronto",
+        "muchas gracias hasta luego", "listo gracias", "eso es todo", "ya está",
+        "me voy", "hasta otra", "cerrar", "salir", "fin", "terminar"
+      ],
+      "responses": [
+        "¡Hasta luego! Espero haberte ayudado. No dudes en contactarnos si tienes más problemas.",
+        "¡Que tengas un buen día! Si necesitas más ayuda, aquí estaremos.",
+        "¡Hasta pronto! Ha sido un placer asistirte."
+      ]
+    },
+    {
+      "tag": "agradecimiento",
+      "description": "Expresiones de agradecimiento",
+      "patterns": [
+        "gracias", "muchas gracias", "te lo agradezco", "genial gracias",
+        "perfecto gracias", "ok gracias", "muy bien gracias", "excelente gracias",
+        "thanks", "thank you", "de acuerdo gracias", "entendido gracias",
+        "funcionó gracias", "lo he resuelto gracias", "problema solucionado"
+      ],
+      "responses": [
+        "¡De nada! Es un placer ayudarte. ¿Hay algo más en lo que pueda asistirte?",
+        "¡Con gusto! Si necesitas algo más, no dudes en preguntar.",
+        "¡Espero haber resuelto tu problema! ¿Tienes alguna otra consulta?"
+      ]
+    },
+    {
+      "tag": "problema_wifi",
+      "description": "Problemas de conexión a internet y WiFi",
+      "patterns": [
+        "no tengo internet", "mi wifi no funciona", "no me conecta a internet",
+        "perdí la conexión a internet", "no puedo conectarme al wifi",
+        "internet no funciona", "sin conexión a internet", "wifi caído",
+        "no hay internet", "problemas con el wifi", "la red no funciona",
+        "no me reconoce el wifi", "no puedo navegar por internet",
+        "internet muy lento", "se cae la conexión", "el wifi se desconecta",
+        "no detecta redes wifi", "no aparece el wifi", "perdí señal wifi",
+        "conexión inestable", "red no disponible", "without internet connection",
+        "problemas de red", "no funciona la red", "red caída",
+        "no tengo acceso a internet", "falla la conexión"
+      ],
+      "responses": [
+        "Entiendo que tienes problemas con la conexión a internet. Sigue estos pasos:\n\n1️⃣ Reinicia el router desenchufándolo 30 segundos\n2️⃣ Reinicia tu equipo\n3️⃣ Verifica que el adaptador de red esté activado\n4️⃣ Ejecuta el diagnóstico de red de Windows:\n   → Panel de control → Centro de redes → Solucionar problemas\n\n¿El problema persiste tras estos pasos? Si es así, podría ser un fallo del proveedor de internet.",
+        "Para resolver problemas de WiFi, prueba lo siguiente:\n\n• Comprueba que el WiFi esté activado en tu dispositivo\n• Reinicia el router y el equipo\n• Olvida la red y vuelve a conectarte\n• Actualiza los drivers de la tarjeta de red desde el Administrador de dispositivos\n\nSi el problema sigue, contacta con tu proveedor de internet."
+      ]
+    },
+    {
+      "tag": "computadora_lenta",
+      "description": "Equipo con bajo rendimiento o lentitud",
+      "patterns": [
+        "mi computadora va muy lenta", "el ordenador está lento", "el pc tarda mucho",
+        "todo va lento", "el sistema está lento", "el equipo se congela",
+        "mi pc se congela", "tarda mucho en arrancar", "el inicio es muy lento",
+        "los programas tardan en abrir", "todo va muy pesado", "el pc va fatal",
+        "mucho tiempo de carga", "el disco va al 100%", "el cpu al 100%",
+        "la memoria ram está llena", "poco rendimiento", "va muy pesado el sistema",
+        "el pc no responde", "aplicación no responde", "programa colgado",
+        "el sistema se bloquea", "ordenador bloqueado", "equipo congelado",
+        "tarda demasiado", "muy lento el ordenador"
+      ],
+      "responses": [
+        "Para mejorar el rendimiento de tu equipo, prueba estos pasos:\n\n1️⃣ Reinicia el equipo (libera memoria RAM)\n2️⃣ Desactiva programas de inicio innecesarios:\n   → Ctrl+Shift+Esc → pestaña Inicio\n3️⃣ Libera espacio en disco (mantén al menos 15% libre)\n4️⃣ Ejecuta un análisis antivirus completo\n5️⃣ Actualiza Windows y los drivers\n\n💡 Tip: Abre el Administrador de tareas para ver qué proceso consume más CPU o RAM.",
+        "Un equipo lento puede deberse a varias causas:\n\n• Poco espacio en disco C:\n• Demasiados programas al inicio\n• Malware o virus en el sistema\n• Drivers desactualizados\n• Hardware que necesita limpieza/actualización\n\nUsa el Administrador de tareas (Ctrl+Alt+Supr) para identificar el proceso que consume más recursos."
+      ]
+    },
+    {
+      "tag": "reinicio_contrasena",
+      "description": "Recuperación y cambio de contraseñas",
+      "patterns": [
+        "olvidé mi contraseña", "no recuerdo mi contraseña", "necesito cambiar mi contraseña",
+        "quiero resetear mi contraseña", "se me olvidó la clave", "no puedo iniciar sesión",
+        "contraseña incorrecta", "acceso denegado", "cuenta bloqueada",
+        "cómo cambio mi contraseña", "recuperar contraseña", "contraseña caducada",
+        "no me deja entrar", "usuario bloqueado", "resetear clave",
+        "contraseña expirada", "cambiar clave", "nueva contraseña",
+        "no recuerdo la clave de windows", "contraseña de usuario"
+      ],
+      "responses": [
+        "Para restablecer tu contraseña corporativa:\n\n1️⃣ Ve al portal de usuario: https://soporte.empresa.com\n2️⃣ Haz clic en '¿Olvidaste tu contraseña?'\n3️⃣ Introduce tu correo corporativo\n4️⃣ Revisa tu correo y sigue el enlace (revisa también spam)\n5️⃣ Crea una nueva contraseña segura:\n   ✅ Mínimo 8 caracteres\n   ✅ Al menos una mayúscula, un número y un carácter especial\n\n⚠️ Si no recibes el correo en 5 minutos, contacta al administrador.",
+        "Para cambiar la contraseña de Windows:\n\n→ Presiona Ctrl+Alt+Supr\n→ Selecciona 'Cambiar contraseña'\n→ Introduce la contraseña actual y la nueva dos veces\n\nSi no recuerdas la contraseña actual, necesitarás que el administrador del sistema la restablezca. Abre un ticket de incidencia adjuntando tu número de empleado."
+      ]
+    },
+    {
+      "tag": "instalar_software",
+      "description": "Instalación y actualización de software",
+      "patterns": [
+        "necesito instalar un programa", "cómo instalo software", "no puedo instalar aplicaciones",
+        "quiero instalar office", "instalación de programas", "error al instalar",
+        "no me deja instalar", "cómo instalar drivers", "actualizar software",
+        "descargar e instalar", "instalar aplicación", "problema con la instalación",
+        "no tengo permisos para instalar", "error de instalación", "instalar antivirus",
+        "instalar controladores", "instalar programa", "acceso denegado al instalar"
+      ],
+      "responses": [
+        "Para instalar software en tu equipo:\n\n1️⃣ Asegúrate de tener permisos de administrador\n2️⃣ Descarga el instalador SOLO desde fuentes oficiales\n3️⃣ Clic derecho sobre el instalador → 'Ejecutar como administrador'\n4️⃣ Sigue los pasos del asistente de instalación\n5️⃣ Reinicia el equipo si se solicita\n\n⚠️ Para software corporativo, solicita la instalación al departamento de TI mediante ticket.",
+        "Si tienes problemas al instalar software:\n\n• Verifica que tienes suficiente espacio en disco\n• Comprueba compatibilidad con tu versión de Windows\n• Desactiva temporalmente el antivirus durante la instalación\n• Si aparece error de permisos, solicita aprobación al administrador\n\n¿Qué programa necesitas instalar? Puedo orientarte mejor."
+      ]
+    },
+    {
+      "tag": "no_enciende",
+      "description": "El equipo no arranca o pantalla en negro",
+      "patterns": [
+        "el ordenador no enciende", "el pc no arranca", "no inicia el sistema",
+        "pantalla negra", "pantalla en negro", "no hay imagen en el monitor",
+        "el equipo no se inicia", "no prende la computadora", "pantalla apagada",
+        "el sistema no carga", "se queda en pantalla negra", "no bootea",
+        "no carga windows", "error al iniciar windows", "no pasa del logo",
+        "círculo girando en el arranque", "windows no inicia", "error de arranque",
+        "no inicia el ordenador", "equipo no responde al encender"
+      ],
+      "responses": [
+        "Para resolver problemas de arranque, sigue estos pasos:\n\n1️⃣ Verifica que los cables de alimentación y del monitor estén bien conectados\n2️⃣ Apagado forzado: mantén el botón de encendido 10 segundos\n3️⃣ Espera 30 segundos y vuelve a encender\n4️⃣ Prueba a iniciar en Modo Seguro: presiona F8 repetidamente durante el arranque\n5️⃣ Si hay pitidos al encender, anota el patrón (número de pitidos)\n\n🔴 Si el problema persiste, puede ser un fallo de hardware. Abre un ticket urgente.",
+        "Pantalla negra al iniciar — posibles causas y soluciones:\n\n• **Cable del monitor:** verifica la conexión HDMI/DisplayPort/VGA\n• **Windows dañado:** inicia con USB de recuperación → Reparar inicio\n• **Modo Seguro:** Shift+F8 durante el arranque → Opciones avanzadas\n• **BIOS/UEFI:** si el PC enciende pero no carga Windows, puede ser un fallo de disco\n\nContacta al técnico si ningún paso funciona."
+      ]
+    },
+    {
+      "tag": "virus_malware",
+      "description": "Infecciones por virus, malware o ransomware",
+      "patterns": [
+        "creo que tengo un virus", "mi pc tiene virus", "malware en el ordenador",
+        "el antivirus detectó algo", "comportamiento extraño del pc", "pop-ups molestos",
+        "publicidad en el navegador", "el navegador me redirige", "ransomware",
+        "archivo sospechoso", "ejecuté un archivo sospechoso", "me piden rescate por mis archivos",
+        "mis archivos están cifrados", "adware", "spyware", "troyano",
+        "el antivirus detectó una amenaza", "virus detectado", "equipo infectado",
+        "no puedo abrir mis archivos", "archivos con extensión rara"
+      ],
+      "responses": [
+        "⚠️ IMPORTANTE: Si sospechas de malware, actúa de inmediato:\n\n1️⃣ Desconéctate de Internet (cable de red o activa modo avión)\n2️⃣ NO apagues el equipo (si es ransomware, conserva la memoria)\n3️⃣ Ejecuta análisis completo con el antivirus corporativo\n4️⃣ Descarga Malwarebytes Free y ejecuta un análisis adicional\n5️⃣ Notifica INMEDIATAMENTE al equipo de seguridad: seguridad@empresa.com\n\n🔴 NUNCA pagues un rescate por ransomware. Contacta al equipo de TI.",
+        "Para limpiar tu equipo de malware:\n\n• Inicia en **Modo Seguro con funciones de red** (F8 al arrancar)\n• Ejecuta Windows Defender Offline desde Configuración → Seguridad de Windows\n• Usa Malwarebytes para un escaneo adicional\n• Cambia todas tus contraseñas DESPUÉS de limpiar el equipo\n\n🛡️ Prevención: Solo descarga software de sitios oficiales, no abras adjuntos sospechosos."
+      ]
+    },
+    {
+      "tag": "problema_impresora",
+      "description": "Problemas con impresoras y dispositivos de impresión",
+      "patterns": [
+        "la impresora no funciona", "no puedo imprimir", "error de impresora",
+        "impresora sin conexión", "impresora offline", "atasco de papel",
+        "papel atascado en la impresora", "la impresora no imprime", "falta tóner",
+        "tinta agotada", "cola de impresión bloqueada", "impresora no detectada",
+        "no encuentra la impresora", "driver de impresora", "impresión lenta",
+        "calidad de impresión", "impresora en red no funciona", "instalar impresora"
+      ],
+      "responses": [
+        "Para resolver problemas con tu impresora:\n\n1️⃣ Verifica que esté encendida y conectada (USB o red)\n2️⃣ Comprueba su estado en Configuración → Impresoras\n3️⃣ **Limpiar la cola de impresión:**\n   → Servicios (services.msc) → Cola de impresión → Detener\n   → Elimina archivos en: C:\\Windows\\System32\\spool\\PRINTERS\n   → Reinicia el servicio\n4️⃣ Establécela como impresora predeterminada\n5️⃣ Reinstala los drivers desde el sitio del fabricante\n\n¿Qué mensaje de error aparece en la pantalla?",
+        "Si la impresora aparece como 'Sin conexión':\n\n1. Abre 'Impresoras y escáneres' en Configuración\n2. Haz clic en la impresora → Abrir cola de impresión\n3. Menú Impresora → Desactiva 'Usar impresora sin conexión'\n4. Reinicia el equipo y la impresora\n\nPara **atascos de papel**: apaga la impresora y extrae el papel suavemente siguiendo la dirección de avance del papel."
+      ]
+    },
+    {
+      "tag": "backup_datos",
+      "description": "Copias de seguridad y recuperación de datos",
+      "patterns": [
+        "cómo hacer una copia de seguridad", "backup de mis datos", "copias de seguridad",
+        "recuperar archivos borrados", "perdí mis archivos", "archivos eliminados",
+        "cómo recuperar datos", "copia de seguridad windows", "restaurar archivos",
+        "sincronizar datos", "guardar en la nube", "copia de seguridad automática",
+        "borré archivos por error", "cómo restaurar datos", "recuperar ficheros"
+      ],
+      "responses": [
+        "Para configurar copias de seguridad en Windows:\n\n1️⃣ Ve a Configuración → Windows Update → Copia de seguridad\n2️⃣ Activa la copia automática con OneDrive\n3️⃣ Para backup completo del sistema:\n   → Panel de control → Sistema → Copia de seguridad y restauración\n4️⃣ Configura copias automáticas periódicas\n\n💡 **Regla 3-2-1**: 3 copias, en 2 medios distintos, 1 copia fuera de la oficina/nube",
+        "Para recuperar archivos eliminados:\n\n1. Comprueba la **Papelera de reciclaje**\n2. Clic derecho en la carpeta → **Restaurar versiones anteriores**\n3. Usa el Historial de archivos si estaba configurado\n4. Si usas OneDrive: entra a onedrive.com → Papelera de reciclaje\n5. Software de recuperación gratuito: **Recuva** (piriform.com)\n\n⚠️ Cuanto antes actúes, más probabilidades de recuperar los archivos."
+      ]
+    },
+    {
+      "tag": "actualizaciones",
+      "description": "Problemas con actualizaciones de Windows o drivers",
+      "patterns": [
+        "windows no se actualiza", "error al actualizar", "actualización pendiente",
+        "quiero actualizar windows", "cómo actualizo el sistema", "actualización fallida",
+        "windows update no funciona", "error de windows update", "desactivar actualizaciones",
+        "actualizaciones automáticas", "tengo que actualizar drivers", "actualizar controladores",
+        "actualización se queda colgada", "no termina de actualizar"
+      ],
+      "responses": [
+        "Para actualizar Windows correctamente:\n\n1️⃣ Ve a Configuración → Windows Update → Buscar actualizaciones\n2️⃣ Si hay error, ejecuta el solucionador automático:\n   → Configuración → Sistema → Solucionar problemas → Windows Update\n3️⃣ Asegúrate de tener al menos 20 GB libres en disco C:\n4️⃣ Reinicia tras las actualizaciones\n\nPara drivers: usa el **Administrador de dispositivos** o descárgalos desde la web del fabricante del equipo.",
+        "Si Windows Update falla, prueba estos comandos (como administrador):\n\n```\nsfc /scannow\nDISM /Online /Cleanup-Image /RestoreHealth\n```\n\nDespués reinicia el servicio Windows Update:\n→ Ejecutar (Win+R) → services.msc → Windows Update → Reiniciar\n\nSi el problema continúa, crea un ticket indicando el código de error que aparece."
+      ]
+    },
+    {
+      "tag": "correo_electronico",
+      "description": "Problemas con clientes de correo electrónico",
+      "patterns": [
+        "no puedo acceder al correo", "problema con el email", "outlook no funciona",
+        "no recibo correos", "no puedo enviar correos", "error en outlook",
+        "correo no sincroniza", "configurar correo", "correo corporativo",
+        "problema con gmail", "correo lento", "no carga el correo",
+        "contraseña de correo", "cuenta de email bloqueada", "correo no abre",
+        "no me llega el correo", "correo desaparecido"
+      ],
+      "responses": [
+        "Para resolver problemas con el correo electrónico:\n\n1️⃣ Verifica tu conexión a internet\n2️⃣ Comprueba el estado del servidor de correo con TI\n3️⃣ En Outlook: Archivo → Configuración de la cuenta → Probar conexión\n4️⃣ Reinicia el perfil de Outlook:\n   → Cierra Outlook → Elimina archivos .ost → Vuelve a abrirlo\n5️⃣ Inicia en modo seguro: escribe `outlook.exe /safe` en Ejecutar\n\n¿Usas Outlook, Gmail u otro cliente de correo?",
+        "Problemas comunes de Outlook y soluciones:\n\n• **No sincroniza:** verifica las credenciales y el servidor IMAP/SMTP\n• **Muy lento:** desactiva complementos en Archivo → Opciones → Complementos\n• **Error de certificado:** actualiza Outlook o contacta al administrador\n• **Reparar Office:** Panel de control → Programas → Microsoft 365 → Cambiar → Reparar en línea"
+      ]
+    },
+    {
+      "tag": "soporte_humano",
+      "description": "Solicitud de atención por un técnico humano",
+      "patterns": [
+        "quiero hablar con una persona", "necesito un técnico", "soporte humano",
+        "hablar con agente", "conectar con técnico", "esto no lo resuelves tú",
+        "problema complejo", "necesito ayuda especializada", "escalar el problema",
+        "hablar con un experto", "soporte nivel 2", "problema grave",
+        "urgente necesito ayuda", "abrir ticket", "crear incidencia", "abrir incidencia"
+      ],
+      "responses": [
+        "Entendido, te voy a conectar con un técnico especialista.\n\n📋 Para agilizar la atención, ten preparado:\n• Número de empleado o ticket de incidencia\n• Descripción detallada del problema\n• Pasos que ya has intentado\n• Capturas de pantalla del error si las tienes\n\n📞 Teléfono: 900 XXX XXX\n📧 Email: soporte@empresa.com\n🌐 Portal de tickets: soporte.empresa.com\n⏰ Horario: Lunes a Viernes, 8:00 - 18:00",
+        "Te derivo con nuestro equipo de soporte especializado:\n\n• **Teléfono:** 900 XXX XXX (urgencias)\n• **Email:** soporte@empresa.com\n• **Portal de tickets:** soporte.empresa.com\n• **Soporte en lugar de trabajo:** solicitar visita técnica desde el portal\n\n⏰ El tiempo medio de respuesta es de 2 horas en horario laboral."
+      ]
+    },
+    {
+      "tag": "bateria_portatil",
+      "description": "Problemas con la batería del portátil",
+      "patterns": [
+        "la batería no carga", "batería agotada rápido", "el portatil no carga",
+        "el portátil solo funciona enchufado", "batería al 0%", "no carga la batería",
+        "indicador de batería no funciona", "batería descalibrada",
+        "el cargador no funciona", "LED del cargador parpadeando"
+      ],
+      "responses": [
+        "Para problemas de batería en portátiles:\n\n1️⃣ Verifica que el cargador esté bien conectado (al equipo y a la corriente)\n2️⃣ Prueba con otro enchufe o regleta\n3️⃣ Reinicia el equipo con el cargador conectado\n4️⃣ **Calibrar la batería:** descárgala completamente y cárgala al 100% sin interrupciones\n5️⃣ En Windows: Configuración → Sistema → Alimentación → Informe de batería\n   (ejecuta: `powercfg /batteryreport` en CMD)\n\nSi la batería tiene más de 2-3 años o menos del 60% de capacidad, es momento de reemplazarla."
+      ]
+    },
+    {
+      "tag": "audio_video",
+      "description": "Problemas de audio o video en el equipo",
+      "patterns": [
+        "no tengo sonido", "el audio no funciona", "sin sonido en el pc",
+        "los altavoces no funcionan", "auriculares sin sonido", "micrófono no funciona",
+        "no me escuchan en videollamada", "cámara no funciona", "webcam no detectada",
+        "pantalla parpadeante", "resolución incorrecta", "pantalla borrosa",
+        "video con retraso", "sin imagen en monitor externo"
+      ],
+      "responses": [
+        "Para resolver problemas de audio:\n\n1️⃣ Clic derecho en el icono de sonido → Solucionar problemas de sonido\n2️⃣ Verifica que el volumen no esté en silencio (icono de altavoz en la barra)\n3️⃣ Comprueba el dispositivo de salida correcto:\n   → Configuración → Sistema → Sonido\n4️⃣ Actualiza los drivers de audio desde el Administrador de dispositivos\n5️⃣ Reinicia el servicio de audio de Windows:\n   → services.msc → Windows Audio → Reiniciar\n\nPara problemas de cámara/micrófono en videollamadas: revisa los permisos de privacidad en Configuración → Privacidad."
+      ]
+    }
+  ]
+}

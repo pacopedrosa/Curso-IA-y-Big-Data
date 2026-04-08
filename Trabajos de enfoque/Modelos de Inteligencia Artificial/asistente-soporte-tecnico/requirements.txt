@@ -1,0 +1,21 @@
+# Dependencias del Asistente Virtual de Soporte Técnico
+# Instalar con: pip install -r requirements.txt
+
+# API REST
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# PLN y Machine Learning
+scikit-learn==1.5.2
+nltk==3.9.1
+numpy==1.26.4
+
+# Validación de datos (incluido por FastAPI, versión explícita)
+pydantic==2.9.2
+
+# Soporte para formularios multipart en FastAPI
+python-multipart==0.0.12
+
+# Tests
+pytest==8.3.3
+httpx==0.27.2        # cliente HTTP para tests de la API
