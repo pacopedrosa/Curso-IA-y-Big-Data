@@ -1,0 +1,6 @@
+store_id,name,city,store_type
+1,SuperFresh Centro,Madrid,Urbana
+2,SuperFresh Norte,Madrid,Suburbana
+3,SuperFresh Sur,Sevilla,Urbana
+4,SuperFresh Levante,Valencia,Urbana
+5,SuperFresh Playa,Alicante,Costera
