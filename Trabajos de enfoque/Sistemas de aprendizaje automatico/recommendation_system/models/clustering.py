@@ -222,10 +222,30 @@ def run_clustering_pipeline(db_path: str = DB_PATH, n_clusters: int = 5,
     features["kmeans_cluster"] = km_labels
     features["dbscan_cluster"] = db_labels
 
-    # Persistir asignaciones en la BD
+    # Persistir asignaciones y métricas en la BD
     conn = sqlite3.connect(db_path)
     cluster_df = features[["user_id", "kmeans_cluster", "dbscan_cluster"]]
     cluster_df.to_sql("user_clusters", conn, if_exists="replace", index=False)
+
+    # Guardar métricas del modelo para que la API pueda recuperarlas
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS model_metrics (
+            id INTEGER PRIMARY KEY,
+            km_silhouette REAL,
+            db_silhouette REAL,
+            n_clusters_km INTEGER,
+            n_clusters_db INTEGER,
+            n_noise_db INTEGER,
+            best_k INTEGER
+        )
+    """)
+    conn.execute("DELETE FROM model_metrics")
+    conn.execute(
+        "INSERT INTO model_metrics (id, km_silhouette, db_silhouette, n_clusters_km, "
+        "n_clusters_db, n_noise_db, best_k) VALUES (1, ?, ?, ?, ?, ?, ?)",
+        (km_sil, db_sil, n_clusters, n_clusters_db, n_noise, best_k),
+    )
+    conn.commit()
     conn.close()
 
     # ── Gráficos ───────────────────────────────────────────────────────────────
