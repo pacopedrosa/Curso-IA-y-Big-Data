@@ -3,11 +3,14 @@ Filtrado colaborativo basado en similitud de usuarios (User-Based CF).
 
 Algoritmo:
   1. Construir la matriz usuario-curso de ratings.
-  2. Calcular la similitud coseno entre todos los pares de usuarios.
+  2. Calcular la similitud coseno ajustada por la media del usuario (mean-centered
+     cosine similarity), equivalente a correlación de Pearson. Elimina el sesgo
+     de escala individual (usuarios que sistemáticamente puntúan alto o bajo).
   3. Para un usuario objetivo, identificar los k vecinos más cercanos dentro
-     del mismo cluster (o en todo el dataset si se prefiere).
-  4. Recomendar los cursos mejor valorados por esos vecinos que el usuario
-     objetivo aún no ha visto.
+     del mismo cluster con similitud >= umbral.
+  4. Predecir con media ponderada mean-centered: añade el sesgo del usuario
+     a la predicción final para mayor precisión.
+  5. Recomendar los cursos con mayor rating predicho no vistos por el usuario.
 
 Métrica de evaluación: Precision@K
   Porcentaje de recomendaciones relevantes (rating real >= umbral) entre
@@ -58,20 +61,47 @@ def load_courses(db_path: str = DB_PATH) -> pd.DataFrame:
 
 # ── Similitud ─────────────────────────────────────────────────────────────────
 
-def compute_user_similarity(matrix: pd.DataFrame) -> pd.DataFrame:
-    """Calcula la similitud coseno entre todos los usuarios."""
-    sparse = csr_matrix(matrix.values)
+def _mean_center_matrix(matrix: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    """
+    Resta la media de cada usuario (solo sobre ítems valorados, rating > 0).
+    Devuelve la matriz centrada y el vector de medias por usuario.
+    """
+    values = matrix.values.astype(float).copy()
+    mask = values > 0
+    # Media por usuario solo sobre ratings reales (no sobre ceros)
+    row_sums = np.where(mask, values, 0.0).sum(axis=1)
+    row_counts = mask.sum(axis=1)
+    user_means = np.where(row_counts > 0, row_sums / row_counts, 0.0)
+    centered = np.where(mask, values - user_means[:, np.newaxis], 0.0)
+    return (pd.DataFrame(centered, index=matrix.index, columns=matrix.columns),
+            pd.Series(user_means, index=matrix.index))
+
+
+def compute_user_similarity(matrix: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    """
+    Calcula la similitud coseno ajustada por la media del usuario (mean-centered
+    cosine similarity). Equivale a la correlación de Pearson y elimina el sesgo
+    de escala individual (usuarios que siempre puntúan alto o bajo).
+
+    Devuelve (sim_df, user_means).
+    """
+    centered, user_means = _mean_center_matrix(matrix)
+    sparse = csr_matrix(centered.values)
     sim_matrix = cosine_similarity(sparse)
-    return pd.DataFrame(sim_matrix, index=matrix.index, columns=matrix.index)
+    np.fill_diagonal(sim_matrix, 0.0)  # evitar auto-similitud
+    return (pd.DataFrame(sim_matrix, index=matrix.index, columns=matrix.index),
+            user_means)
 
 
 # ── Recomendación ─────────────────────────────────────────────────────────────
 
 def get_top_k_neighbors(user_id: str, sim_df: pd.DataFrame, k: int = 10,
-                        same_cluster: list[str] = None) -> list[str]:
+                        same_cluster: list[str] = None,
+                        sim_threshold: float = 0.05) -> list[str]:
     """
-    Devuelve los k usuarios más similares al usuario objetivo.
+    Devuelve los k usuarios más similares al usuario objetivo con similitud >= sim_threshold.
     Si same_cluster no es None, filtra solo entre esos usuarios.
+    El umbral elimina vecinos con similitud casi nula que añaden ruido a la predicción.
     """
     if user_id not in sim_df.index:
         return []
@@ -79,14 +109,21 @@ def get_top_k_neighbors(user_id: str, sim_df: pd.DataFrame, k: int = 10,
     if same_cluster is not None:
         pool = [u for u in same_cluster if u != user_id and u in similarities.index]
         similarities = similarities.loc[pool]
+    # Filtrar vecinos por umbral mínimo de similitud
+    similarities = similarities[similarities >= sim_threshold]
     return similarities.nlargest(k).index.tolist()
 
 
 def predict_ratings(user_id: str, neighbors: list[str],
-                    matrix: pd.DataFrame, sim_df: pd.DataFrame) -> pd.Series:
+                    matrix: pd.DataFrame, sim_df: pd.DataFrame,
+                    user_means: pd.Series = None) -> pd.Series:
     """
-    Predice el rating del usuario objetivo para los cursos no vistos,
-    usando la media ponderada de ratings de los vecinos.
+    Predice el rating del usuario objetivo para los cursos no vistos usando
+    predicción mean-centered:
+        pred(u, i) = mean(u) + sum(sim(u,v) * (r(v,i) - mean(v))) / sum(|sim(u,v)|)
+
+    Esto elimina el sesgo de escala de cada usuario y produce predicciones más
+    precisas que la media ponderada de ratings brutos.
     """
     if not neighbors:
         return pd.Series(dtype=float)
@@ -94,25 +131,43 @@ def predict_ratings(user_id: str, neighbors: list[str],
     seen = set(matrix.loc[user_id][matrix.loc[user_id] > 0].index)
     unseen_courses = [c for c in matrix.columns if c not in seen]
 
-    neighbor_matrix = matrix.loc[neighbors, unseen_courses]
     sims = sim_df.loc[user_id, neighbors].values
 
-    # Evitar división por cero
-    non_zero_mask = neighbor_matrix > 0
-    weighted_sum = neighbor_matrix.T.dot(sims)
-    sim_sum = non_zero_mask.T.dot(np.abs(sims))
-    sim_sum = np.where(sim_sum == 0, 1e-9, sim_sum)
+    if user_means is not None:
+        neighbor_means = user_means.loc[neighbors].values
+        neighbor_matrix = matrix.loc[neighbors, unseen_courses].values.astype(float)
+        mask = neighbor_matrix > 0
+        # Centrar ratings del vecino (solo donde tiene rating real)
+        centered = np.where(mask, neighbor_matrix - neighbor_means[:, np.newaxis], 0.0)
+        weighted_sum = centered.T.dot(sims)
+        sim_sum = mask.T.dot(np.abs(sims))
+        sim_sum = np.where(sim_sum == 0, 1e-9, sim_sum)
+        user_mean = float(user_means.loc[user_id]) if user_id in user_means.index else 0.0
+        predicted_values = user_mean + weighted_sum / sim_sum
+    else:
+        # Fallback: media ponderada de ratings brutos
+        neighbor_matrix = matrix.loc[neighbors, unseen_courses]
+        non_zero_mask = neighbor_matrix > 0
+        weighted_sum = neighbor_matrix.T.dot(sims)
+        sim_sum = non_zero_mask.T.dot(np.abs(sims))
+        sim_sum = np.where(sim_sum == 0, 1e-9, sim_sum)
+        predicted_values = weighted_sum / sim_sum
 
-    predicted = pd.Series(weighted_sum / sim_sum, index=unseen_courses)
+    predicted = pd.Series(predicted_values, index=unseen_courses)
     return predicted.sort_values(ascending=False)
 
 
 def recommend(user_id: str, matrix: pd.DataFrame, sim_df: pd.DataFrame,
               courses: pd.DataFrame, clusters: pd.DataFrame = None,
-              n_neighbors: int = 20, top_n: int = 5) -> pd.DataFrame:
+              user_means: pd.Series = None,
+              n_neighbors: int = 30, top_n: int = 5) -> pd.DataFrame:
     """
     Genera las top_n recomendaciones de cursos para un usuario.
     Devuelve un DataFrame con course_id, name, category, level, predicted_rating.
+
+    Estrategia de vecinos:
+      1. Vecinos del mismo cluster con similitud >= 0.05.
+      2. Si hay menos de 10 vecinos válidos, expande al dataset completo.
     """
     same_cluster = None
     if clusters is not None and not clusters.empty and user_id in clusters["user_id"].values:
@@ -122,10 +177,11 @@ def recommend(user_id: str, matrix: pd.DataFrame, sim_df: pd.DataFrame,
         ].tolist()
 
     neighbors = get_top_k_neighbors(user_id, sim_df, k=n_neighbors, same_cluster=same_cluster)
-    if not neighbors:
-        neighbors = get_top_k_neighbors(user_id, sim_df, k=n_neighbors)  # fallback sin filtro
+    # Fallback al dataset completo si no hay suficientes vecinos en el cluster
+    if len(neighbors) < 10:
+        neighbors = get_top_k_neighbors(user_id, sim_df, k=n_neighbors)
 
-    predictions = predict_ratings(user_id, neighbors, matrix, sim_df)
+    predictions = predict_ratings(user_id, neighbors, matrix, sim_df, user_means)
     if predictions.empty:
         return pd.DataFrame()
 
@@ -155,6 +211,7 @@ def precision_at_k(recommendations: pd.DataFrame, actual_ratings: pd.Series,
 
 def evaluate_system(matrix: pd.DataFrame, sim_df: pd.DataFrame,
                     courses: pd.DataFrame, clusters: pd.DataFrame,
+                    user_means: pd.Series = None,
                     sample_size: int = 50, k: int = 5,
                     threshold: float = 3.5) -> dict:
     """
@@ -182,7 +239,7 @@ def evaluate_system(matrix: pd.DataFrame, sim_df: pd.DataFrame,
         matrix_temp.loc[uid, test_items.index] = 0
 
         recs = recommend(uid, matrix_temp, sim_df, courses, clusters,
-                         n_neighbors=20, top_n=k)
+                         user_means=user_means, n_neighbors=30, top_n=k)
         if recs.empty:
             continue
 
@@ -211,23 +268,26 @@ class CollaborativeFilteringModel:
         self.db_path = db_path
         self.matrix: pd.DataFrame = None
         self.sim_df: pd.DataFrame = None
+        self.user_means: pd.Series = None
         self.courses: pd.DataFrame = None
         self.clusters: pd.DataFrame = None
 
     def fit(self):
         self.matrix, _, _ = load_ratings_matrix(self.db_path)
-        self.sim_df = compute_user_similarity(self.matrix)
+        self.sim_df, self.user_means = compute_user_similarity(self.matrix)
         self.courses = load_courses(self.db_path)
         self.clusters = load_clusters(self.db_path)
         return self
 
     def recommend(self, user_id: str, top_n: int = 5) -> pd.DataFrame:
         return recommend(user_id, self.matrix, self.sim_df,
-                         self.courses, self.clusters, top_n=top_n)
+                         self.courses, self.clusters,
+                         user_means=self.user_means, top_n=top_n)
 
     def evaluate(self, sample_size: int = 50, k: int = 5) -> dict:
         return evaluate_system(self.matrix, self.sim_df, self.courses,
-                               self.clusters, sample_size=sample_size, k=k)
+                               self.clusters, user_means=self.user_means,
+                               sample_size=sample_size, k=k)
 
 
 if __name__ == "__main__":
