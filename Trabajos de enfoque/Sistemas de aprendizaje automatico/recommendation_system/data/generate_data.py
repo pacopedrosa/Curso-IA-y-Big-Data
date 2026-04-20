@@ -135,8 +135,15 @@ def generate_interactions(users: pd.DataFrame, courses: pd.DataFrame) -> pd.Data
         for cid in selected_courses:
             course_row = courses[courses["course_id"] == cid].iloc[0]
             base_rating = course_row["avg_rating"]
-            noise = np.random.normal(0, 0.5)
-            rating = float(np.clip(round(base_rating + noise, 1), 1.0, 5.0))
+            # Sesgo individual del usuario: hace que cada usuario tenga
+            # preferencias personales consistentes (mejora la señal para CF)
+            user_bias = np.random.normal(0, 0.6)
+            # Preferencia por categoría: si el curso es de la categoría favorita
+            # del usuario, recibe un bonus adicional
+            top_cat = max(prefs, key=prefs.get)
+            cat_bonus = 0.4 if course_row["category"] == top_cat else 0.0
+            noise = np.random.normal(0, 0.25)
+            rating = float(np.clip(round(base_rating + user_bias + cat_bonus + noise, 1), 1.0, 5.0))
 
             completed = rating >= 3.5
             progress = 100.0 if completed else round(random.uniform(10, 90), 1)

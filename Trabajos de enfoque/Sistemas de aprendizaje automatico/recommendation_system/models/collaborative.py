@@ -109,7 +109,7 @@ def predict_ratings(user_id: str, neighbors: list[str],
 
 def recommend(user_id: str, matrix: pd.DataFrame, sim_df: pd.DataFrame,
               courses: pd.DataFrame, clusters: pd.DataFrame = None,
-              n_neighbors: int = 10, top_n: int = 5) -> pd.DataFrame:
+              n_neighbors: int = 20, top_n: int = 5) -> pd.DataFrame:
     """
     Genera las top_n recomendaciones de cursos para un usuario.
     Devuelve un DataFrame con course_id, name, category, level, predicted_rating.
@@ -158,31 +158,36 @@ def evaluate_system(matrix: pd.DataFrame, sim_df: pd.DataFrame,
                     sample_size: int = 50, k: int = 5,
                     threshold: float = 3.5) -> dict:
     """
-    Evalúa el sistema sobre una muestra de usuarios usando leave-one-out.
-    Para cada usuario, retira un curso conocido y comprueba si fue recomendado.
-    Devuelve Precision@K media y desviación estándar.
+    Evalúa el sistema sobre una muestra de usuarios usando holdout multi-ítem.
+    Estrategia: para cada usuario se retiran el 25% de sus ítems relevantes
+    (rating >= threshold) como conjunto de test. Se mide cuántos de los top-K
+    recomendados pertenecen a ese conjunto relevante → Precision@K real.
+    Esto es más representativo que leave-one-out con un único ítem.
     """
-    users_sample = np.random.choice(matrix.index.tolist(), size=sample_size, replace=False)
+    eligible = [u for u in matrix.index if (matrix.loc[u] >= threshold).sum() >= 4]
+    actual_sample = min(sample_size, len(eligible))
+    users_sample = np.random.choice(eligible, size=actual_sample, replace=False)
     precisions = []
 
     for uid in users_sample:
-        seen = matrix.loc[uid][matrix.loc[uid] > 0]
-        if len(seen) < 2:
-            continue
+        seen = matrix.loc[uid]
+        relevant_items = seen[seen >= threshold]
 
-        # Leave-one-out: ocultar el último curso interactuado
-        test_course = seen.index[-1]
-        test_rating = seen.iloc[-1]
+        # Holdout del 25% de ítems relevantes (mínimo 1, máximo 5)
+        n_test = max(1, min(5, int(len(relevant_items) * 0.25)))
+        test_items = relevant_items.sample(n=n_test, random_state=None)
+
+        # Retirar los ítems de test de la matriz temporal
         matrix_temp = matrix.copy()
-        matrix_temp.loc[uid, test_course] = 0
+        matrix_temp.loc[uid, test_items.index] = 0
 
-        # Recalcular similitudes sin ese rating (simplificado: usar misma matriz)
-        recs = recommend(uid, matrix_temp, sim_df, courses, clusters, top_n=k)
+        recs = recommend(uid, matrix_temp, sim_df, courses, clusters,
+                         n_neighbors=20, top_n=k)
         if recs.empty:
             continue
 
-        actual = pd.Series({test_course: test_rating})
-        p_k = precision_at_k(recs, actual, k=k, threshold=threshold)
+        # Precision@K: fracción de top-K recomendados que están en test_items
+        p_k = precision_at_k(recs, test_items, k=k, threshold=threshold)
         precisions.append(p_k)
 
     if not precisions:

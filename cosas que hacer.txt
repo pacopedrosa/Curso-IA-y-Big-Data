@@ -1,7 +1,6 @@
 - Hacer curso machine learning foundations AWS
-- Ver las clases que no me vi (T3) y la resolución de los laboratorios
-- Hacer trabajos de enfoque (Prog IA hecho y big data) aun asi revisarlos
-- Ver clase de sistemas de aprendizaje automatico T5
-- Hacer laboratorios tema 5
-- Hacer cuestionarios tema 5
+- Documentar y revisar trabajos de enfoque
+- Hacer laboratorios tema 5 y 6
+- Hacer cuestionarios tema 7
 - Entrega proyecto 8 de mayo
+- Estudiar teoria

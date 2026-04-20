@@ -189,18 +189,27 @@ def run_clustering_pipeline(db_path: str = DB_PATH, n_clusters: int = 5,
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
+    # ── Reducción de dimensionalidad antes de K-Means ─────────────────────────
+    # PCA concentra la varianza y mejora la separación de clusters en espacios
+    # de alta dimensionalidad (maldición de la dimensionalidad).
+    n_pca = min(10, X_scaled.shape[1], X_scaled.shape[0] - 1)
+    pca_km = PCA(n_components=n_pca, random_state=42)
+    X_km = pca_km.fit_transform(X_scaled)
+    var_explained = pca_km.explained_variance_ratio_.sum()
+    print(f"  PCA para K-Means: {n_pca} componentes ({var_explained*100:.1f}% varianza explicada)")
+
     # ── Selección de k óptimo ──────────────────────────────────────────────────
     k_range = range(2, 11)
-    inertias, silhouettes = elbow_method(X_scaled, k_range)
+    inertias, silhouettes = elbow_method(X_km, k_range)
     best_k = list(k_range)[int(np.argmax(silhouettes))]
     print(f"  Mejor k por Silhouette: {best_k}  (score={max(silhouettes):.4f})")
-    if n_clusters != best_k:
-        print(f"  Usando k={n_clusters} según configuración (best_k={best_k})")
+    # Usar siempre best_k para maximizar la calidad del clustering
+    n_clusters = best_k
 
     # ── K-Means ────────────────────────────────────────────────────────────────
-    km = fit_kmeans(X_scaled, n_clusters)
+    km = fit_kmeans(X_km, n_clusters)
     km_labels = km.labels_
-    km_sil = silhouette_score(X_scaled, km_labels)
+    km_sil = silhouette_score(X_km, km_labels)
     print(f"  K-Means  | k={n_clusters} | Silhouette={km_sil:.4f}")
 
     # ── DBSCAN ─────────────────────────────────────────────────────────────────
@@ -213,8 +222,9 @@ def run_clustering_pipeline(db_path: str = DB_PATH, n_clusters: int = 5,
 
     # ── Guardar modelos ────────────────────────────────────────────────────────
     os.makedirs(MODEL_DIR, exist_ok=True)
-    pickle.dump(scaler,  open(os.path.join(MODEL_DIR, "scaler.pkl"), "wb"))
-    pickle.dump(km,      open(os.path.join(MODEL_DIR, "kmeans.pkl"), "wb"))
+    pickle.dump(scaler,    open(os.path.join(MODEL_DIR, "scaler.pkl"), "wb"))
+    pickle.dump(pca_km,    open(os.path.join(MODEL_DIR, "pca_km.pkl"), "wb"))
+    pickle.dump(km,        open(os.path.join(MODEL_DIR, "kmeans.pkl"), "wb"))
     pickle.dump(feat_cols, open(os.path.join(MODEL_DIR, "feature_cols.pkl"), "wb"))
 
     # ── Asignar clusters a usuarios ────────────────────────────────────────────
@@ -222,10 +232,30 @@ def run_clustering_pipeline(db_path: str = DB_PATH, n_clusters: int = 5,
     features["kmeans_cluster"] = km_labels
     features["dbscan_cluster"] = db_labels
 
-    # Persistir asignaciones en la BD
+    # Persistir asignaciones y métricas en la BD
     conn = sqlite3.connect(db_path)
     cluster_df = features[["user_id", "kmeans_cluster", "dbscan_cluster"]]
     cluster_df.to_sql("user_clusters", conn, if_exists="replace", index=False)
+
+    # Guardar métricas del modelo para que la API pueda recuperarlas
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS model_metrics (
+            id INTEGER PRIMARY KEY,
+            km_silhouette REAL,
+            db_silhouette REAL,
+            n_clusters_km INTEGER,
+            n_clusters_db INTEGER,
+            n_noise_db INTEGER,
+            best_k INTEGER
+        )
+    """)
+    conn.execute("DELETE FROM model_metrics")
+    conn.execute(
+        "INSERT INTO model_metrics (id, km_silhouette, db_silhouette, n_clusters_km, "
+        "n_clusters_db, n_noise_db, best_k) VALUES (1, ?, ?, ?, ?, ?, ?)",
+        (km_sil, db_sil, n_clusters, n_clusters_db, n_noise, best_k),
+    )
+    conn.commit()
     conn.close()
 
     # ── Gráficos ───────────────────────────────────────────────────────────────
@@ -233,7 +263,7 @@ def run_clustering_pipeline(db_path: str = DB_PATH, n_clusters: int = 5,
         os.makedirs(plots_dir, exist_ok=True)
         plot_elbow(k_range, inertias, silhouettes,
                    save_path=os.path.join(plots_dir, "elbow_silhouette.png"))
-        plot_clusters_pca(X_scaled, km_labels, "Clusters K-Means (PCA 2D)",
+        plot_clusters_pca(X_km, km_labels, "Clusters K-Means (PCA 2D)",
                           save_path=os.path.join(plots_dir, "kmeans_pca.png"))
         plot_clusters_pca(X_scaled, db_labels, "Clusters DBSCAN (PCA 2D)",
                           save_path=os.path.join(plots_dir, "dbscan_pca.png"))
