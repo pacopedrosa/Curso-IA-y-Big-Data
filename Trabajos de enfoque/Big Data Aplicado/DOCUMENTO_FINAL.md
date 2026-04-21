@@ -97,8 +97,8 @@ El sistema sigue el patrón Lambda simplificado, con una capa de velocidad (tiem
 │              Consumer Python                                    │
 │              ┌────────┴────────┐                               │
 │              │                 │                               │
-│         Umbrales           Isolation                           │
-│         de negocio         Forest (ML)                         │
+│         Umbrales           PySpark MLlib                       │
+│         de negocio         KMeans (k=2)                        │
 │              │                 │                               │
 │              └────────┬────────┘                               │
 │                       │                                        │
@@ -106,21 +106,21 @@ El sistema sigue el patrón Lambda simplificado, con una capa de velocidad (tiem
 │             (umbral OR ML)                                      │
 └───────────────────────┼─────────────────────────────────────────┘
                         │
-        ┌───────────────┴────────────────┐
-        ▼                                ▼
-┌──────────────┐                ┌─────────────────┐
-│  InfluxDB    │                │   Cassandra      │
-│  (todos los  │                │   (solo          │
-│   datos,     │                │   anomalías +    │
-│   series     │                │   histórico)     │
-│   temporales)│                │                  │
-└──────┬───────┘                └────────┬─────────┘
-       │                                 │
-       ▼                                 ▼
-  ┌─────────┐                     ┌──────────┐
-  │ Grafana │                     │  FastAPI │
-  │ :3005   │                     │  :8000   │
-  └─────────┘                     └──────────┘
+        ┌───────────────┼──────────────────────┐
+        ▼               ▼                      ▼
+┌──────────────┐ ┌─────────────────┐  ┌──────────────────┐
+│  InfluxDB    │ │   Cassandra      │  │  MinIO (S3)      │
+│  (todos los  │ │   (solo          │  │  Parquet         │
+│   datos,     │ │   anomalías +    │  │  histórico       │
+│   series     │ │   histórico)     │  │  distribuido     │
+│   temporales)│ │                  │  │  :9000/:9001     │
+└──────┬───────┘ └────────┬─────────┘  └──────────────────┘
+       │                  │
+       ▼                  ▼
+  ┌─────────┐       ┌──────────┐
+  │ Grafana │       │  FastAPI │
+  │ :3005   │       │  :8000   │
+  └─────────┘       └──────────┘
 ```
 
 ### 4.2 Descripción de cada componente
@@ -151,11 +151,32 @@ Cassandra es una base de datos NoSQL distribuida y orientada a columnas, diseña
 
 InfluxDB es una base de datos especializada en series temporales, optimizada para escritura y consulta de datos con timestamp. Almacena todas las lecturas como *measurements* `sensor_data` con tags `maquina_id` y `es_anomalia`, y fields para cada variable. Grafana se conecta directamente a InfluxDB mediante el lenguaje de consulta Flux.
 
-#### FastAPI (API REST)
+#### MinIO (almacenamiento distribuido S3-compatible)
 
-Expone los datos a través de endpoints REST completos:
+MinIO es un servidor de almacenamiento de objetos de alto rendimiento, completamente compatible con la API de Amazon S3. Actúa como la capa de **almacenamiento histórico distribuido** del sistema, equivalente funcional a Hadoop HDFS o AWS S3 pero desplegable en local con Docker.
 
-| Endpoint                          | Descripción                              |
+El consumer escribe los datos en formato **Apache Parquet** (columnar, comprimido) cada 100 lecturas en dos buckets:
+
+- `smartmanutech-historical/lecturas/`: todas las lecturas de sensores.
+- `smartmanutech-anomalias/anomalias/`: solo las lecturas clasificadas como anómalas.
+
+Los archivos Parquet son directamente consultables con Spark, Pandas o cualquier herramienta de análisis compatible con S3. La consola web de MinIO está disponible en `http://localhost:9001`.
+
+**¿Por qué MinIO en lugar de Hadoop HDFS?**
+
+| Característica        | Hadoop HDFS     | MinIO               |
+|-----------------------|-----------------|---------------------|
+| Compatibilidad S3     | No nativa       | Total (API S3)      |
+| Requisitos RAM        | >4 GB extra     | <512 MB             |
+| Despliegue Docker     | Complejo        | Un solo contenedor  |
+| Formato de datos      | Cualquiera      | Objetos (Parquet)   |
+| Uso en industria      | Legacy          | Estándar moderno    |
+
+MinIO es la opción estándar en arquitecturas cloud-native modernas y es el backend utilizado por herramientas como MLflow, Dask y Apache Spark en entornos de producción.
+
+
+
+Expone los datos a través de endpoints REST completos:                          | Descripción                              |
 |-----------------------------------|------------------------------------------|
 | `GET /`                           | Health check básico                      |
 | `GET /health`                     | Estado de todas las conexiones           |
@@ -183,38 +204,51 @@ Dashboard con 7 paneles organizados en dos filas:
 
 El dashboard se refresca automáticamente cada 5 segundos.
 
-### 4.3 Modelo de Machine Learning — Isolation Forest
+### 4.3 Modelo de Machine Learning — PySpark MLlib KMeans
 
-**¿Por qué Isolation Forest?**
+**¿Por qué PySpark MLlib?**
 
-El problema de detección de anomalías en este contexto es no supervisado: no tenemos datos históricos etiquetados como "fallo / no fallo". Isolation Forest es idóneo porque:
-- No requiere etiquetas
-- Es eficiente en alta dimensionalidad
-- Funciona bien con el ~5% de anomalías que generamos
-- Se puede reentrenar de forma incremental
+PySpark MLlib es la biblioteca de Machine Learning distribuido de Apache Spark. Permite entrenar modelos sobre datasets de gran volumen aprovechando el procesamiento paralelo del clúster. En este proyecto se utiliza un `SparkSession` local que puede escalar a un clúster real sin cambiar el código.
 
-**Funcionamiento:**
+**Algoritmo: KMeans no supervisado**
 
-Isolation Forest construye un conjunto de árboles binarios con particiones aleatorias de los datos. La idea central es que los puntos anómalos son más fáciles de "aislar" que los normales: requieren menos particiones para quedar solos en una rama. El *anomaly score* es inversamente proporcional a la profundidad media del punto en los árboles.
+El problema de detección de anomalías en este contexto es no supervisado: no se dispone de datos históricos etiquetados como "fallo / no fallo". KMeans agrupa los datos en k=2 clústeres: uno representando el funcionamiento normal y otro las anomalías.
+
+La estrategia de detección:
+- Los puntos situados a mayor distancia del centroide de su clúster son considerados anómalos.
+- El umbral se fija en el percentil 95 de las distancias calculadas durante el entrenamiento.
+
+**Pipeline de PySpark MLlib:**
+
+```
+VectorAssembler → StandardScaler → KMeans(k=2)
+```
+
+1. `VectorAssembler`: concatena los 5 campos de sensor en un vector denso.
+2. `StandardScaler`: normaliza cada columna (media=0, std=1) para que las variables con distintas unidades tengan el mismo peso.
+3. `KMeans(k=2, maxIter=30)`: agrupa los datos; el modelo exporta los centroides.
+
+**Entrenamiento y exportación de parámetros:**
+
+El entrenamiento se realiza con PySpark MLlib. Los parámetros resultantes (centroides, media y std del scaler) se exportan a numpy para la **inferencia en tiempo real** sin overhead de Spark, combinando lo mejor de ambos mundos.
 
 **Datos de entrenamiento:**
 
-Se simulan 2.000 registros de operación normal, con los parámetros estadísticos de las 5 máquinas. Se incluye un 5% de anomalías simuladas para que el modelo aprenda el contraste entre normal y anómalo.
-
-**Parámetros:**
-- `contamination = 0.05`: se estima que el 5% de datos son anomalías
-- `n_estimators = 100`: 100 árboles en el ensemble
-- `random_state = 42`: reproducibilidad
+Se simulan 2.000 registros de operación normal más un 5% de anomalías inyectadas, con los parámetros estadísticos de las 5 máquinas.
 
 **Reentrenamiento online:**
 
-Cada 500 nuevos registros procesados, el modelo se reentrena con esos datos. Esto permite adaptarse a pequñas derivas del proceso (*concept drift*) sin reiniciar el sistema.
+Cada 500 nuevos registros procesados, el modelo se reentrena con PySpark MLlib usando esos datos (adaptación a *concept drift*).
 
-**Limitaciones:**
+**Comparación Isolation Forest vs KMeans MLlib:**
 
-- Al no tener datos reales de fallos, la tasa de falsos positivos inicial puede ser algo elevada.
-- El reentrenamiento usa solo las 500 últimas muestras (ventana deslizante), sin conservar el historial completo.
-- En producción real se complementaría con datos etiquetados para un clasificador supervisado.
+| Característica           | Isolation Forest (sklearn) | KMeans (PySpark MLlib)   |
+|--------------------------|---------------------------|--------------------------|
+| Motor de ejecución       | Single-node               | Distribuido (Spark)      |
+| Escala a big data        | Limitado                  | Sí (clúster Spark)       |
+| Datos etiquetados        | No requiere               | No requiere              |
+| Detecta patrones compl.  | Sí                        | Sí (por distancia)       |
+| Integración pipeline     | sklearn Pipeline          | PySpark ML Pipeline      |
 
 ---
 

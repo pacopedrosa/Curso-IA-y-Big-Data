@@ -1,9 +1,10 @@
 """
 consumer_anomalias.py — SmartManuTech IoT Consumer
 Pipeline de procesamiento en tiempo real:
-  Kafka → Detección anomalías (umbrales + Isolation Forest)
+  Kafka → Detección anomalías (umbrales + PySpark MLlib KMeans)
        → InfluxDB (series temporales para Grafana)
        → Cassandra (histórico de anomalías)
+       → MinIO/S3 (almacenamiento distribuido histórico en Parquet)
 """
 import json
 import os
@@ -11,8 +12,11 @@ import sys
 import logging
 import time
 import uuid
-from datetime import datetime
+import io
+from datetime import datetime, timezone
 
+import boto3
+import pandas as pd
 from kafka import KafkaConsumer
 from kafka.errors import NoBrokersAvailable
 from influxdb_client import InfluxDBClient, Point
@@ -33,7 +37,13 @@ INFLUXDB_URL = os.getenv("INFLUXDB_URL", "http://localhost:8086")
 INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN", "smartmanutech-influx-token-2024")
 INFLUXDB_ORG = os.getenv("INFLUXDB_ORG", "SmartManuTech")
 INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET", "sensores_iot")
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "smartmanutech")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "smartmanutech123")
+MINIO_BUCKET_HISTORICAL = "smartmanutech-historical"
+MINIO_BUCKET_ANOMALIAS = "smartmanutech-anomalias"
 KAFKA_TOPIC = "sensores-iot"
+MINIO_FLUSH_INTERVAL = 100  # filas antes de escribir parquet a MinIO
 
 # ── Umbrales de detección por reglas de negocio ──────────────────────────────
 UMBRALES = {
@@ -169,6 +179,43 @@ def escribir_influxdb(write_api, dato: dict, es_anomalia: bool):
     write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
 
 
+# ── MinIO (almacenamiento distribuido S3-compatible) ──────────────────────────
+def iniciar_minio() -> boto3.client:
+    """Inicializa el cliente boto3 apuntando a MinIO y crea los buckets."""
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=MINIO_ENDPOINT,
+        aws_access_key_id=MINIO_ACCESS_KEY,
+        aws_secret_access_key=MINIO_SECRET_KEY,
+        region_name="us-east-1",
+    )
+    for bucket in [MINIO_BUCKET_HISTORICAL, MINIO_BUCKET_ANOMALIAS]:
+        try:
+            s3.create_bucket(Bucket=bucket)
+            logger.info(f"MinIO: bucket '{bucket}' creado")
+        except Exception:
+            pass  # bucket ya existe
+    logger.info(f"MinIO conectado en {MINIO_ENDPOINT}")
+    return s3
+
+
+def flush_minio(s3_client, filas: list, bucket: str, prefijo: str):
+    """Escribe una lista de registros como archivo Parquet en MinIO."""
+    if not filas or s3_client is None:
+        return
+    try:
+        df = pd.DataFrame(filas)
+        buffer = io.BytesIO()
+        df.to_parquet(buffer, index=False, engine="pyarrow")
+        buffer.seek(0)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+        key = f"{prefijo}/{ts}.parquet"
+        s3_client.put_object(Bucket=bucket, Key=key, Body=buffer.getvalue())
+        logger.info(f"MinIO: {len(filas)} registros → s3://{bucket}/{key}")
+    except Exception as e:
+        logger.warning(f"Error escribiendo en MinIO: {e}")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main():
     logger.info("=" * 55)
@@ -177,8 +224,9 @@ def main():
 
     cass = iniciar_cassandra(CASSANDRA_HOST)
     write_api = iniciar_influxdb(INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG)
+    s3_client = iniciar_minio()
     detector = DetectorAnomalias()
-    logger.info("Modelo Isolation Forest listo (entrenado con histórico simulado)")
+    logger.info("Modelo PySpark MLlib KMeans listo (entrenado con histórico simulado)")
 
     # Conectar a Kafka con reintentos
     consumer = None
@@ -201,6 +249,8 @@ def main():
         raise RuntimeError("No se pudo conectar a Kafka")
 
     stats = {"total": 0, "anomalias_umbral": 0, "anomalias_ml": 0}
+    batch_lecturas: list = []
+    batch_anomalias: list = []
 
     for mensaje in consumer:
         dato = mensaje.value
@@ -227,16 +277,16 @@ def main():
                     f"(límite {umbral_val})"
                 )
 
-        # 2) Detección ML — Isolation Forest
+        # 2) Detección ML — PySpark MLlib KMeans (distancia al centroide)
         if detector.predecir(dato):
             if not es_anomalia:  # evitar duplicar si ya captado por umbral
                 guardar_anomalia(
                     cass, dato, "ANOMALIA_ML", "multivariante",
-                    detector.ultimo_score, -0.1, "isolation_forest"
+                    detector.ultimo_score, detector.threshold or 0.0, "kmeans_spark"
                 )
                 stats["anomalias_ml"] += 1
                 logger.warning(
-                    f"🤖 ML [{dato['maquina_id']}] score={detector.ultimo_score:.3f} — anomalía multivariante"
+                    f"🤖 ML [{dato['maquina_id']}] dist={detector.ultimo_score:.3f} — anomalía multivariante"
                 )
             es_anomalia = True
 
@@ -245,6 +295,20 @@ def main():
 
         # 4) Guardar lectura histórica en Cassandra
         guardar_lectura(cass, dato, es_anomalia)
+
+        # 5) Acumular en batch para MinIO (Parquet, almacenamiento distribuido)
+        fila = {**dato, "es_anomalia": es_anomalia}
+        batch_lecturas.append(fila)
+        if es_anomalia:
+            batch_anomalias.append(fila)
+
+        # Flush a MinIO cada MINIO_FLUSH_INTERVAL lecturas
+        if len(batch_lecturas) >= MINIO_FLUSH_INTERVAL:
+            flush_minio(s3_client, batch_lecturas, MINIO_BUCKET_HISTORICAL, "lecturas")
+            batch_lecturas = []
+        if len(batch_anomalias) >= 10:
+            flush_minio(s3_client, batch_anomalias, MINIO_BUCKET_ANOMALIAS, "anomalias")
+            batch_anomalias = []
 
         if stats["total"] % 25 == 0:
             logger.info(
