@@ -283,7 +283,11 @@
 <script>
   // ── Configuración ────────────────────────────────────────────────────
   const API_URL    = '/api/chat';
+  const API_FB_URL = '/api/feedback';
   const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 10);
+
+  // Contador de mensajes del bot (para el sistema de valoración)
+  let _msgCounter = 0;
 
   const messagesEl = document.getElementById('messages');
   const inputEl    = document.getElementById('input');
