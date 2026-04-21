@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 
+const API = 'http://192.168.219.29:8000'
+
 function App() {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -12,11 +14,11 @@ function App() {
   const [estadisticas, setEstadisticas] = useState(null)
 
   const cargarDatos = () => {
-    fetch('http://localhost:8000/imagenes')
+    fetch(`${API}/imagenes`)
       .then(r => r.json())
       .then(setHistorial)
       .catch(() => {})
-    fetch('http://localhost:8000/estadisticas')
+    fetch(`${API}/estadisticas`)
       .then(r => r.json())
       .then(setEstadisticas)
       .catch(() => {})
@@ -44,7 +46,7 @@ function App() {
     formData.append('file', file)
 
     try {
-      const res = await fetch('http://localhost:8000/upload', {
+      const res = await fetch(`${API}/upload`, {
         method: 'POST',
         body: formData
       })
@@ -53,9 +55,9 @@ function App() {
       setConfianzas(data.confianzas || {})
       setS3Url(data.s3_url)
 
-      const hist = await fetch('http://localhost:8000/imagenes').then(r => r.json())
+      const hist = await fetch(`${API}/imagenes`).then(r => r.json())
       setHistorial(hist)
-      const stats = await fetch('http://localhost:8000/estadisticas').then(r => r.json())
+      const stats = await fetch(`${API}/estadisticas`).then(r => r.json())
       setEstadisticas(stats)
     } catch (e) {
       setError('Error al conectar con el servidor.')

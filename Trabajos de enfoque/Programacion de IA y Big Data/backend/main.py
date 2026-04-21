@@ -12,7 +12,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://192.168.219.29:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -24,8 +24,7 @@ BUCKET = os.getenv("S3_BUCKET_NAME")
 
 # Base de datos
 conn = sqlite3.connect("db.sqlite", check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute("""
+conn.execute("""
     CREATE TABLE IF NOT EXISTS imagenes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT,
@@ -60,7 +59,7 @@ async def upload(file: UploadFile = File(...)):
     etiquetas = ", ".join(labels)
 
     # 3. Guardar en base de datos
-    cursor.execute(
+    conn.execute(
         "INSERT INTO imagenes (nombre, etiquetas, s3_url) VALUES (?, ?, ?)",
         (file.filename, etiquetas, s3_url)
     )
@@ -75,14 +74,18 @@ async def upload(file: UploadFile = File(...)):
 
 @app.get("/imagenes")
 def get_imagenes():
+    cursor = conn.cursor()
     cursor.execute("SELECT id, nombre, etiquetas, s3_url FROM imagenes ORDER BY id DESC")
     rows = cursor.fetchall()
+    cursor.close()
     return [{"id": r[0], "nombre": r[1], "etiquetas": r[2], "s3_url": r[3]} for r in rows]
 
 @app.get("/estadisticas")
 def get_estadisticas():
+    cursor = conn.cursor()
     cursor.execute("SELECT etiquetas FROM imagenes")
     rows = cursor.fetchall()
+    cursor.close()
     total_imagenes = len(rows)
     conteo = {}
     for (etiquetas,) in rows:
