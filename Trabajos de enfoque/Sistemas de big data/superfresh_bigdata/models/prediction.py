@@ -1,6 +1,6 @@
 """
 Modelos de predicción de ventas para SuperFresh.
-Implementa ARIMA, Prophet (si disponible) y Random Forest.
+Implementa ARIMA, Random Forest y Gradient Boosting.
 Evalúa con MAE, RMSE y R².
 """
 import os
@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import TimeSeriesSplit
+from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller
@@ -170,6 +170,45 @@ def train_arima_for_product(sales: pd.DataFrame, product_id: int,
     return metrics, future_df
 
 
+# ── Optimización de hiperparámetros ──────────────────────────────────────────
+def tune_random_forest(df: pd.DataFrame) -> tuple[RandomForestRegressor, dict, dict]:
+    """
+    Búsqueda aleatoria de hiperparámetros para Random Forest.
+    Retorna (mejor_modelo, mejores_params, métricas).
+    """
+    df = df[FEATURE_COLS + ["units_sold", "sale_date"]].dropna()
+    df = df.sort_values("sale_date")
+
+    split_date = pd.Timestamp("2025-07-01")
+    train = df[df["sale_date"] < split_date]
+    test  = df[df["sale_date"] >= split_date]
+
+    X_train, y_train = train[FEATURE_COLS], train["units_sold"]
+    X_test,  y_test  = test[FEATURE_COLS],  test["units_sold"]
+
+    param_dist = {
+        "n_estimators":   [100, 150, 200, 300],
+        "max_depth":      [8, 10, 12, 15, None],
+        "min_samples_leaf": [3, 5, 8, 10],
+        "max_features":   ["sqrt", "log2", 0.7],
+    }
+
+    tscv = TimeSeriesSplit(n_splits=4)
+    base_rf = RandomForestRegressor(random_state=42, n_jobs=-1)
+    search = RandomizedSearchCV(
+        base_rf, param_dist, n_iter=20,
+        scoring="neg_mean_absolute_error",
+        cv=tscv, random_state=42, n_jobs=-1, verbose=0,
+    )
+    search.fit(X_train, y_train)
+    best_rf = search.best_estimator_
+    y_pred  = best_rf.predict(X_test)
+    metrics = compute_metrics(y_test.values, np.maximum(y_pred, 0))
+    print(f"[RF-Tuned] Mejores params: {search.best_params_}")
+    print(f"[RF-Tuned] Métricas test: {metrics}")
+    return best_rf, search.best_params_, metrics
+
+
 # ── Gráficos ──────────────────────────────────────────────────────────────────
 def plot_feature_importance(rf: RandomForestRegressor, top_n: int = 15):
     os.makedirs(STATIC_DIR, exist_ok=True)
@@ -260,7 +299,7 @@ def plot_monthly_sales_trend(sales: pd.DataFrame):
 
 
 # ── Guardado/carga de modelos ─────────────────────────────────────────────────
-def save_models(rf, gb, metrics_rf, metrics_gb):
+def save_models(rf, gb, metrics_rf, metrics_gb, best_params: dict = None):
     os.makedirs(MODEL_DIR, exist_ok=True)
     with open(os.path.join(MODEL_DIR, "rf_model.pkl"), "wb") as f:
         pickle.dump(rf, f)
@@ -268,8 +307,12 @@ def save_models(rf, gb, metrics_rf, metrics_gb):
         pickle.dump(gb, f)
     with open(os.path.join(MODEL_DIR, "feature_cols.pkl"), "wb") as f:
         pickle.dump(FEATURE_COLS, f)
-    # Guardar métricas
-    metrics_all = {"random_forest": metrics_rf, "gradient_boosting": metrics_gb}
+    metrics_all = {
+        "random_forest":     metrics_rf,
+        "gradient_boosting": metrics_gb,
+    }
+    if best_params:
+        metrics_all["best_params_rf"] = best_params
     with open(os.path.join(MODEL_DIR, "metrics.pkl"), "wb") as f:
         pickle.dump(metrics_all, f)
     print("[models] Modelos guardados.")
@@ -288,21 +331,34 @@ def load_models():
 
 
 # ── Pipeline completo ─────────────────────────────────────────────────────────
-def run_model_pipeline():
+def run_model_pipeline(tune_hyperparams: bool = False):
+    """
+    Pipeline completo:
+    1. Carga y preprocesamiento de datos.
+    2. Entrenamiento de Random Forest, Gradient Boosting y ARIMA.
+    3. Optimización de hiperparámetros (opcional, tune_hyperparams=True).
+    4. Evaluación con MAE, RMSE, R² y MAPE.
+    5. Generación de gráficos comparativos.
+    """
     print("[pipeline] Cargando datos…")
     sales, products, stores, weather = load_data()
 
     print("[pipeline] Construyendo características…")
     df_feat = build_features(sales, weather)
 
-    print("[pipeline] Entrenando Random Forest…")
-    rf, metrics_rf = train_random_forest(df_feat)
+    best_params = None
+    if tune_hyperparams:
+        print("[pipeline] Optimizando hiperparámetros (RandomizedSearchCV)…")
+        rf, best_params, metrics_rf = tune_random_forest(df_feat)
+    else:
+        print("[pipeline] Entrenando Random Forest…")
+        rf, metrics_rf = train_random_forest(df_feat)
 
     print("[pipeline] Entrenando Gradient Boosting…")
     gb, metrics_gb = train_gradient_boosting(df_feat)
 
-    print("[pipeline] Guardando modelos…")
-    save_models(rf, gb, metrics_rf, metrics_gb)
+    print("[pipeline] Guardando modelos y métricas…")
+    save_models(rf, gb, metrics_rf, metrics_gb, best_params)
 
     print("[pipeline] Generando gráficos…")
     plot_feature_importance(rf)
@@ -318,8 +374,19 @@ def run_model_pipeline():
         except Exception as e:
             print(f"[ARIMA] Error en producto {pid}: {e}")
 
+    print("\n[pipeline] Comparación de modelos:")
+    print(f"  Random Forest:      {metrics_rf}")
+    print(f"  Gradient Boosting:  {metrics_gb}")
+    if best_params:
+        print(f"  Mejores hiperparámetros RF: {best_params}")
+
     return metrics_rf, metrics_gb
 
 
 if __name__ == "__main__":
-    run_model_pipeline()
+    import argparse
+    parser = argparse.ArgumentParser(description="Pipeline de modelos SuperFresh")
+    parser.add_argument("--tune", action="store_true",
+                        help="Activar ajuste de hiperparámetros (más lento)")
+    args = parser.parse_args()
+    run_model_pipeline(tune_hyperparams=args.tune)

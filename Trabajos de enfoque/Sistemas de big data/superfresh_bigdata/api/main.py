@@ -349,7 +349,44 @@ def get_metrics():
     return _state["metrics"]
 
 
+@app.get("/metrics/all", tags=["Modelos"])
+def get_all_metrics():
+    """
+    Devuelve las métricas de todos los modelos entrenados:
+    Random Forest, Gradient Boosting e hiperparámetros óptimos del ajuste (si se ejecutó con --tune).
+    """
+    return _state["metrics"]
+
+
 @app.get("/categories", tags=["Catálogo"])
 def list_categories():
     cats = _state["products"]["category"].unique().tolist()
     return {"categories": sorted(cats)}
+
+
+@app.get("/sales/seasonal", tags=["Análisis"])
+def seasonal_analysis(
+    category: Optional[str] = Query(None, description="Filtrar por categoría"),
+    store_id: Optional[int] = Query(None, description="Filtrar por tienda"),
+):
+    """
+    Calcula las unidades medias por mes para analizar la estacionalidad
+    de la demanda, con filtros opcionales por categoría y tienda.
+    """
+    sales    = _state["sales"].copy()
+    products = _state["products"].copy()
+
+    df = sales.merge(products[["product_id", "category"]], on="product_id")
+    if category:
+        df = df[df["category"].str.lower() == category.lower()]
+    if store_id:
+        df = df[df["store_id"] == store_id]
+
+    df["month"] = df["sale_date"].dt.month
+    result = (df.groupby("month")
+              .agg(avg_units=("units_sold", "mean"),
+                   total_units=("units_sold", "sum"))
+              .round(2)
+              .reset_index())
+    return result.to_dict(orient="records")
+

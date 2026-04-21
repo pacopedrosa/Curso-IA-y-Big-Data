@@ -376,6 +376,26 @@ elif page == "🤖 Modelos":
         st.markdown("#### Comparación de métricas")
         st.image(cmp_img, use_column_width=True)
 
+    # Tabla de métricas completa
+    all_metrics = api_get("/metrics/all")
+    if all_metrics:
+        st.markdown("#### Tabla resumen de métricas por modelo")
+        rows = []
+        for model_name, m in all_metrics.items():
+            if isinstance(m, dict) and "MAE" in m:
+                rows.append({
+                    "Modelo": model_name.replace("_", " ").title(),
+                    "MAE":  m.get("MAE",  "—"),
+                    "RMSE": m.get("RMSE", "—"),
+                    "R²":   m.get("R2",   "—"),
+                    "MAPE (%)": m.get("MAPE", "—"),
+                })
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+        if "best_params_rf" in all_metrics:
+            st.markdown("**Mejores hiperparámetros (Random Forest — RandomizedSearchCV):**")
+            st.json(all_metrics["best_params_rf"])
+
 
 # ── PÁGINA: CONFIGURACIÓN ──────────────────────────────────────────────────────
 elif page == "⚙️ Configuración":
@@ -385,7 +405,7 @@ elif page == "⚙️ Configuración":
     if status:
         st.success(f"✅ API operativa — {status.get('service','')}")
     else:
-        st.error("❌ API no disponible. Asegúrate de que está corriendo en el puerto 8001.")
+        st.error("❌ API no disponible. Asegúrate de que está corriendo en el puerto 8002.")
 
     st.markdown("### Resumen de datos cargados")
     c1, c2, c3, c4 = st.columns(4)
@@ -393,6 +413,35 @@ elif page == "⚙️ Configuración":
     c2.metric("Productos",            f"{len(products)}")
     c3.metric("Tiendas",              f"{len(stores)}")
     c4.metric("Registros de clima",   f"{len(weather)}")
+
+    # Análisis de estacionalidad
+    st.markdown("### Análisis de estacionalidad por categoría")
+    cats = ["Todas"] + sorted(products["category"].unique().tolist())
+    sel_cat_s = st.selectbox("Categoría", cats, key="seas_cat")
+    seas_data = api_get("/sales/seasonal",
+                        **({"category": sel_cat_s} if sel_cat_s != "Todas" else {}))
+    if seas_data:
+        df_seas = pd.DataFrame(seas_data)
+        fig_seas = px.bar(df_seas, x="month", y="avg_units",
+                          title="Unidades medias por mes (estacionalidad)",
+                          labels={"month": "Mes", "avg_units": "Unidades medias"},
+                          color="avg_units", color_continuous_scale="Blues")
+        fig_seas.update_xaxes(tickvals=list(range(1, 13)),
+                               ticktext=["Ene","Feb","Mar","Abr","May","Jun",
+                                         "Jul","Ago","Sep","Oct","Nov","Dic"])
+        st.plotly_chart(fig_seas, use_container_width=True)
+
+    # Arquitectura del sistema
+    st.markdown("### Arquitectura del sistema Big Data")
+    st.markdown("""
+| Capa | Tecnología | Propósito |
+|---|---|---|
+| **Ingesta / ETL** | Apache Spark (`data/spark_processing.py`) | Procesamiento distribuido de grandes volúmenes |
+| **Almacenamiento** | SQLite (dev) · PostgreSQL · MongoDB | Persistencia flexible según entorno |
+| **Modelos IA** | ARIMA · Random Forest · Gradient Boosting | Predicción de demanda |
+| **API REST** | FastAPI + Uvicorn | Consulta de predicciones en tiempo real |
+| **Dashboard** | Streamlit + Plotly | Cuadro de mando interactivo |
+    """)
 
     st.markdown("### Productos en catálogo")
     st.dataframe(products, use_container_width=True)
