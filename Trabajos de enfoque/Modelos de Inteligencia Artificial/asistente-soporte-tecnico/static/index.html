@@ -209,7 +209,29 @@
       border-top: 1px solid var(--border);
       flex-shrink: 0;
     }
-  </style>
+    /* ── Botones de valoración ────────────────────────────────────────────── */
+    .rating-btns {
+      display: flex;
+      gap: 4px;
+      margin-top: 5px;
+    }
+    .rating-btns button {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 2px 9px;
+      font-size: .78rem;
+      transition: background .15s, border-color .15s;
+      line-height: 1.6;
+    }
+    .rating-btns button:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .rating-btns .label {
+      font-size: .72rem;
+      color: var(--text-muted);
+      align-self: center;
+      margin-left: 2px;
+    }  </style>
 </head>
 <body>
 <div class="chat-wrapper">
@@ -357,11 +379,22 @@
       ? ` · <span title="Confianza del clasificador">${Math.round(confidence * 100)}%</span>`
       : '';
 
+    // Los botones de valoración solo aparecen en respuestas reales (no en el saludo inicial)
+    const msgId = intent ? 'msg_' + (++_msgCounter) : null;
+    const ratingHtml = msgId
+      ? `<div class="rating-btns" id="rating_${msgId}">
+           <span class="label">¿Fue útil?</span>
+           <button onclick="sendFeedback('${msgId}', 1, this)" title="Sí, fue útil">👍</button>
+           <button onclick="sendFeedback('${msgId}', -1, this)" title="No fue útil">👎</button>
+         </div>`
+      : '';
+
     el.innerHTML = `
       <div class="msg-icon">🤖</div>
       <div>
         <div class="bubble">${formatMarkdown(escHtml(text))}</div>
         <div class="meta">${currentTime()}${confLabel}</div>
+        ${ratingHtml}
       </div>
     `;
     messagesEl.appendChild(el);
@@ -412,6 +445,24 @@
     requestAnimationFrame(() => {
       messagesEl.scrollTop = messagesEl.scrollHeight;
     });
+  }
+
+  // ── Sistema de valoración de respuestas ─────────────────────────────────────
+  async function sendFeedback(messageId, rating, btn) {
+    // Reemplazar botones por confirmación visual inmediatamente
+    const container = btn.parentElement;
+    container.innerHTML = rating > 0
+      ? '<span style="color:#16a34a;font-size:.78rem">\u2705 \u00a1Gracias!</span>'
+      : '<span style="color:#64748b;font-size:.78rem">\ud83d\udcdd Registrado</span>';
+
+    // Enviar valoración al servidor (sin bloquear la UI si falla)
+    try {
+      await fetch(API_FB_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: SESSION_ID, message_id: messageId, rating })
+      });
+    } catch (_) { /* fallo silencioso: no interrumpir la conversación */ }
   }
 </script>
 </body>

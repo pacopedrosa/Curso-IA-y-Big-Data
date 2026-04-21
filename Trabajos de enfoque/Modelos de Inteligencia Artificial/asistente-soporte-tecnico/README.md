@@ -41,7 +41,8 @@ Asistente conversacional en Python para el **soporte técnico de una empresa de 
 |--------------------|----------------------------------|
 | Lenguaje           | Python 3.11+                     |
 | API REST           | FastAPI + Uvicorn                |
-| PLN                | NLTK (tokenización, stopwords, stemming) |
+| PLN (clásico)      | NLTK (tokenización, stopwords, stemming) |
+| PLN (avanzado)     | spaCy `es_core_news_sm` (NER, POS, lematización) |
 | Clasificación      | scikit-learn (TF-IDF + Logistic Regression) |
 | Interfaz web       | HTML5 / CSS3 / JavaScript vanilla |
 | Tests              | pytest                           |
@@ -89,7 +90,14 @@ source venv/bin/activate        # Linux/macOS
 pip install -r requirements.txt
 ```
 
-### 3. Entrenar el modelo
+### 4. Descargar el modelo de spaCy (PLN avanzado)
+
+```bash
+python -m spacy download es_core_news_sm
+```
+
+> El modelo se usa para extracción de entidades nombradas (NER) y análisis morfológico.
+> El asistente funciona sin él (degradación elegante), pero se recomienda instalarlo.
 
 ```bash
 python train.py
@@ -103,20 +111,25 @@ Salida esperada:
    Validación cruzada (5-fold): Accuracy media: 0.964 ± 0.021
 ```
 
-### 4. Iniciar la API
+### 5. Iniciar la API
 
 ```bash
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 9050
 ```
 
-### 5. Abrir el chatbot
+> Para restringir CORS en producción, define la variable de entorno:
+> ```bash
+> ALLOWED_ORIGINS=https://midominio.com python3 -m uvicorn app.main:app --host 0.0.0.0 --port 9050
+> ```
 
-Abre en tu navegador: [http://localhost:8000](http://localhost:8000)
+### 6. Abrir el chatbot
+
+Abre en tu navegador: [http://localhost:9050](http://localhost:9050)
 
 O usa la API directamente:
 
 ```bash
-curl -X POST http://localhost:8000/api/chat \
+curl -X POST http://localhost:9050/api/chat \
   -H "Content-Type: application/json" \
   -d '{"session_id": "usuario_1", "message": "no tengo internet"}'
 ```
@@ -127,12 +140,13 @@ curl -X POST http://localhost:8000/api/chat \
 |----------|-----------------------------------|-------------------------------------|
 | `GET`    | `/`                               | Interfaz web del chatbot            |
 | `POST`   | `/api/chat`                       | Enviar mensaje al asistente         |
-| `GET`    | `/api/health`                     | Estado del servicio                 |
+| `GET`    | `/api/health`                     | Estado, métricas y satisfacción     |
 | `GET`    | `/api/faqs`                       | Listado de temas disponibles        |
+| `POST`   | `/api/feedback`                   | Valorar una respuesta (👍/👎)         |
 | `GET`    | `/api/history/{session_id}`       | Historial de conversación           |
 | `DELETE` | `/api/session/{session_id}`       | Limpiar sesión                      |
 
-Documentación interactiva (Swagger): [http://localhost:8000/docs](http://localhost:8000/docs)
+Documentación interactiva (Swagger): [http://localhost:9050/docs](http://localhost:9050/docs)
 
 ## Intenciones soportadas
 
@@ -163,10 +177,13 @@ pytest tests/ -v
 ## Consideraciones éticas y de privacidad
 
 - **Privacidad por diseño**: no se persiste ningún dato de conversación en base de datos.
-- Las sesiones se almacenan únicamente en memoria volátil y se eliminan al cerrar el servidor.
+- Las sesiones se almacenan únicamente en memoria volátil y **expiran automáticamente** tras 30 minutos de inactividad.
 - No se recopilan datos personales del usuario más allá del contenido de la consulta.
-- En producción, se debe restringir el CORS a dominios autorizados y añadir autenticación.
+- Las valoraciones (👍/👎) se almacenan anónimamente (solo `session_id` + `rating`) para mejorar el sistema.
+- En producción, se debe restringir el CORS a dominios autorizados mediante la variable `ALLOWED_ORIGINS` y añadir autenticación.
 - El sistema es transparente: siempre informa al usuario cuando la consulta está fuera de su capacidad y ofrece alternativas de contacto humano.
+- **Transparencia algorítmica**: el campo `confidence` en cada respuesta informa al usuario del grado de certeza del clasificador.
+- **Cumplimiento RGPD**: sin recolección de datos personales identificables, sin cookies de seguimiento, sin transferencias a terceros.
 
 ## Licencia
 

@@ -8,7 +8,7 @@ gestionando el estado de cada sesión de conversación.
 
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from app.diagnostics import DiagnosticEngine
@@ -21,6 +21,9 @@ _MODEL_PATH = os.path.join(_BASE_DIR, "app", "data", "model.pkl")
 
 # Intenciones que desencadenan un flujo de diagnóstico guiado
 DIAGNOSTIC_INTENTS = {"problema_wifi", "computadora_lenta", "no_enciende"}
+
+# Tiempo máximo de inactividad antes de expirar una sesión (minutos)
+SESSION_TTL_MINUTES = 30
 
 
 @dataclass
@@ -39,6 +42,7 @@ class Session:
     session_id: str
     history: list[ConversationTurn] = field(default_factory=list)
     turn_count: int = 0
+    last_activity: datetime = field(default_factory=datetime.now)
 
     def add_turn(self, user_msg: str, bot_resp: str, intent: str, confidence: float) -> None:
         self.history.append(
@@ -51,6 +55,7 @@ class Session:
             )
         )
         self.turn_count += 1
+        self.last_activity = datetime.now()
 
 
 # Respuesta cuando el clasificador no supera el umbral de confianza
@@ -104,6 +109,7 @@ class Chatbot:
               "confidence": float — confianza del clasificador
             }
         """
+        self._cleanup_expired_sessions()
         session = self._get_or_create_session(session_id)
         user_message = user_message.strip()
 
@@ -187,6 +193,16 @@ class Chatbot:
         if session_id not in self._sessions:
             self._sessions[session_id] = Session(session_id=session_id)
         return self._sessions[session_id]
+
+    def _cleanup_expired_sessions(self) -> None:
+        """Elimina sesiones inactivas que superan SESSION_TTL_MINUTES."""
+        cutoff = datetime.now() - timedelta(minutes=SESSION_TTL_MINUTES)
+        expired = [
+            sid for sid, session in self._sessions.items()
+            if session.last_activity < cutoff
+        ]
+        for sid in expired:
+            self.clear_session(sid)
 
     def _load_model(self) -> None:
         """Carga el modelo preentrenado o entrena uno nuevo si no existe."""

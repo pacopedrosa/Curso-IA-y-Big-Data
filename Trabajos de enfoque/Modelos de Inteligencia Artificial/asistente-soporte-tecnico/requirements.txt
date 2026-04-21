@@ -16,6 +16,9 @@ pydantic==2.9.2
 # Soporte para formularios multipart en FastAPI
 python-multipart==0.0.12
 
+# PLN avanzado: reconocimiento de entidades nombradas
+spacy==3.8.2
+
 # Tests
 pytest==8.3.3
 httpx==0.27.2        # cliente HTTP para tests de la API

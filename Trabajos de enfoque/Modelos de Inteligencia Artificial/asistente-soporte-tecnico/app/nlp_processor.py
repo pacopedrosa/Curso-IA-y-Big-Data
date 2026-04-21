@@ -85,3 +85,114 @@ class NLPProcessor:
     def _is_valid(self, token: str) -> bool:
         """Devuelve True si el token debe incluirse (alfabético y no es stopword)."""
         return token.isalpha() and token not in self._stop_words and len(token) > 2
+
+
+# ---------------------------------------------------------------------------
+# Procesador de PLN avanzado con spaCy
+# ---------------------------------------------------------------------------
+
+class SpacyProcessor:
+    """
+    Extractor de entidades técnicas y análisis morfológico usando spaCy.
+
+    Complementa al pipeline NLTK/TF-IDF identificando entidades nombradas
+    (productos, versiones, sistemas operativos, organizaciones) y extrayendo
+    términos técnicos relevantes mediante análisis POS.
+
+    Degradación elegante: si spaCy o el modelo no están disponibles,
+    todos los métodos devuelven listas vacías sin lanzar excepción.
+
+    Instalación del modelo:
+        pip install spacy
+        python -m spacy download es_core_news_sm
+    """
+
+    # Modelo de spaCy para español (pequeño, rápido, suficiente para NER)
+    _MODEL = "es_core_news_sm"
+
+    # Tipos de entidad relevantes en el dominio de soporte técnico
+    _RELEVANT_LABELS = {"ORG", "PRODUCT", "MISC", "PER", "LOC"}
+
+    # POS tags de tokens con carga semántica
+    _CONTENT_POS = {"NOUN", "PROPN", "ADJ"}
+
+    def __init__(self) -> None:
+        self._nlp = None
+        self._available = False
+        self._load_model()
+
+    # ------------------------------------------------------------------
+    # API pública
+    # ------------------------------------------------------------------
+
+    @property
+    def available(self) -> bool:
+        """True si spaCy y el modelo están correctamente cargados."""
+        return self._available
+
+    def extract_entities(self, text: str) -> list[dict]:
+        """
+        Extrae entidades nombradas del texto.
+
+        Retorna: lista de dicts {"text": str, "label": str} donde 'label'
+        es el tipo de entidad spaCy (ORG, PRODUCT, MISC…).
+        """
+        if not self._available:
+            return []
+        doc = self._nlp(text)
+        return [
+            {"text": ent.text, "label": ent.label_}
+            for ent in doc.ents
+            if ent.label_ in self._RELEVANT_LABELS
+        ]
+
+    def extract_technical_terms(self, text: str) -> list[str]:
+        """
+        Extrae sustantivos, nombres propios y adjetivos relevantes del texto
+        en forma lematizada. Útil para enriquecer el contexto de diagnóstico.
+        """
+        if not self._available:
+            return []
+        doc = self._nlp(text)
+        return [
+            token.lemma_.lower()
+            for token in doc
+            if token.pos_ in self._CONTENT_POS
+            and not token.is_stop
+            and len(token.text) > 2
+        ]
+
+    def analyze(self, text: str) -> dict:
+        """
+        Análisis completo del texto: entidades + términos técnicos.
+
+        Retorna:
+            {
+              "entities": [{"text": ..., "label": ...}, ...],
+              "technical_terms": [...],
+              "available": bool
+            }
+        """
+        return {
+            "entities": self.extract_entities(text),
+            "technical_terms": self.extract_technical_terms(text),
+            "available": self._available,
+        }
+
+    # ------------------------------------------------------------------
+    # Métodos privados
+    # ------------------------------------------------------------------
+
+    def _load_model(self) -> None:
+        """Intenta cargar el modelo spaCy en español. Falla silenciosamente."""
+        try:
+            import spacy  # noqa: PLC0415
+            self._nlp = spacy.load(self._MODEL)
+            self._available = True
+        except ImportError:
+            # spaCy no está instalado
+            pass
+        except OSError:
+            # El modelo es_core_news_sm no está descargado
+            # Instrucción: python -m spacy download es_core_news_sm
+            pass
