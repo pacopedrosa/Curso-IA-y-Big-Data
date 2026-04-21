@@ -218,21 +218,7 @@ Cada 500 nuevos registros procesados, el modelo se reentrena con esos datos. Est
 
 ---
 
-## 5. Capturas a incluir en la entrega
-
-Para completar la documentación con evidencias visuales, se recomienda capturar:
-
-1. **`docker compose ps`** — mostrando todos los servicios con estado `healthy`.
-2. **Logs del producer** (`docker logs bigdata-producer`) — líneas de tipo `✅ [MAQ-001] T=73.2°C | ...` y algunas `⚠️` de anomalías inyectadas.
-3. **Logs del consumer** (`docker logs bigdata-consumer`) — mostrando `⚠️ UMBRAL` y `🤖 ML` detectando anomalías.
-4. **Grafana dashboard** (http://localhost:3005) — los 7 paneles con datos en tiempo real.
-5. **API /docs** (http://localhost:8000/docs) — interfaz Swagger con todos los endpoints.
-6. **API /anomalias/recientes** — respuesta JSON con anomalías reales.
-7. **InfluxDB UI** (http://localhost:8086) — consulta de datos en el bucket `sensores_iot`.
-
----
-
-## 6. Instrucciones de ejecución
+## 5. Instrucciones de ejecución
 
 ### Requisitos previos
 
@@ -295,33 +281,33 @@ docker compose down -v       # Elimina datos también
 
 ---
 
-## 7. Problemas encontrados y soluciones
+## 6. Problemas encontrados y soluciones
 
-### 7.1 Puerto 3000 ocupado en arranque de Grafana
+### 6.1 Puerto 3000 ocupado en arranque de Grafana
 
 **Problema:** El error `address already in use` al arrancar Grafana indicaba que el puerto 3000 ya estaba en uso por otra aplicación en el host.
 
 **Solución:** Se modificó el mapeo de puertos de `3000:3000` a `3005:3000` en el `docker-compose.yml`. Grafana sigue escuchando en su puerto interno 3000, pero se expone externamente en el 3005.
 
-### 7.2 IP hardcodeada en el productor
+### 6.2 IP hardcodeada en el productor
 
 **Problema:** El productor original tenía la IP `192.168.219.29:9092` hardcodeada, lo que impedía funcionar en cualquier otra máquina.
 
 **Solución:** Se sustituyó por `kafka:29092` (nombre del servicio Docker dentro de la red `bigdata_net`) leído desde la variable de entorno `KAFKA_BOOTSTRAP_SERVERS`. Esto hace el código portable y configurable sin modificarlo.
 
-### 7.3 Consumer dependía de Cassandra no inicializada
+### 6.3 Consumer dependía de Cassandra no inicializada
 
 **Problema:** Cassandra tarda ~60 segundos en arrancar completamente. El consumer intentaba conectar antes de que estuviera lista y fallaba.
 
 **Solución:** Se implementó lógica de reintentos con espera exponencial (hasta 12 reintentos con 8 segundos de espera) tanto para Cassandra como para Kafka. Además, en el `docker-compose.yml` se añadió `condition: service_healthy` para que los servicios Python no arranquen hasta que Cassandra pase su healthcheck.
 
-### 7.4 Grafana no encontraba el datasource InfluxDB
+### 6.4 Grafana no encontraba el datasource InfluxDB
 
 **Problema:** El dashboard hacía referencia a un datasource con UID `influxdb-smartmanutech` pero el datasource provisionado no tenía ese UID.
 
 **Solución:** Se añadió explícitamente `uid: influxdb-smartmanutech` en el archivo `grafana-datasource.yml`, garantizando que el UID del dashboard JSON y el UID del datasource coincidan.
 
-### 7.5 Módulo ML no encontrado en el container del consumer
+### 6.5 Módulo ML no encontrado en el container del consumer
 
 **Problema:** Al ejecutar `consumer_anomalias.py` dentro del container, el import `from ml.predictive_model import DetectorAnomalias` fallaba porque Python no encontraba el paquete `ml`.
 
@@ -329,9 +315,9 @@ docker compose down -v       # Elimina datos también
 
 ---
 
-## 8. Evaluación del sistema
+## 7. Evaluación del sistema
 
-### 8.1 Tiempo de respuesta
+### 7.1 Tiempo de respuesta
 
 Se midió desde la generación del dato en el productor hasta su aparición en Grafana:
 
@@ -345,7 +331,7 @@ Se midió desde la generación del dato en el productor hasta su aparición en G
 
 En un sistema de producción real con Kafka optimizado y Grafana con refresh de 1 segundo, la latencia perceptible podría reducirse a < 2 segundos.
 
-### 8.2 Escalabilidad
+### 7.2 Escalabilidad
 
 La arquitectura escala horizontalmente en todos sus componentes:
 
@@ -356,7 +342,7 @@ La arquitectura escala horizontalmente en todos sus componentes:
 
 En este proyecto académico se usa 1 broker Kafka, 1 nodo Cassandra y 1 instancia de InfluxDB, lo que es suficiente para demostrar la arquitectura. En producción con 500+ máquinas se requerirían mínimo 3 brokers Kafka y un clúster Cassandra de 3 nodos.
 
-### 8.3 Comparación de modelos de detección
+### 7.3 Comparación de modelos de detección
 
 | Modelo                     | Tipo          | Requiere etiquetas | Detecta combinaciones | Interpretabilidad | Velocidad |
 |----------------------------|---------------|--------------------|-----------------------|-------------------|-----------|
@@ -377,31 +363,7 @@ La combinación de umbrales (para detectar violaciones claras de límites operat
 
 ---
 
-## 9. Conclusión crítica
-
-El proyecto SmartManuTech demuestra que es posible construir una plataforma Big Data completamente funcional con herramientas open source, contenedores Docker y un único ordenador de desarrollo.
-
-**Lo que funciona especialmente bien:**
-
-La arquitectura desacoplada basada en Kafka permite que los componentes evolucionen de forma independiente. Si mañana se quiere sustituir Cassandra por MongoDB, o InfluxDB por TimescaleDB, basta con modificar el consumer y la API sin tocar el producer ni la infraestructura de mensajería. Esta separación de responsabilidades es el pilar de cualquier arquitectura Big Data robusta.
-
-El uso de InfluxDB como almacén de series temporales separado de Cassandra es una decisión de diseño deliberada: Cassandra es óptima para lecturas y escrituras masivas por clave primaria, pero Grafana necesita consultas de rango temporal que InfluxDB resuelve de forma mucho más eficiente.
-
-**Limitaciones del sistema actual:**
-
-El principal punto débil es el modelo de Machine Learning. Al no disponer de datos reales de fallos etiquetados, el modelo Isolation Forest se entrena con datos simulados. En un entorno de producción real, los primeros meses de datos deberían ser usados para etiquetar incidentes y reentrenar con un modelo supervisado (Random Forest o XGBoost) que tenga una tasa de precisión demostrable.
-
-Otra limitación es la ausencia de un sistema de alertas activas: el sistema detecta anomalías y las muestra en el dashboard, pero no envía notificaciones por email ni mensajería. En producción real se integraría Grafana Alerting o una cola de mensajes para notificar al personal de mantenimiento.
-
-**Reflexión sobre Big Data en la industria:**
-
-Este proyecto ilustra por qué el Big Data no es una solución mágica, sino una disciplina de ingeniería. El valor real no está en acumular datos (cualquier base de datos puede hacerlo), sino en la arquitectura del pipeline que transforma datos crudos en acciones concretas: en este caso, alertas de mantenimiento preventivo que pueden evitar averías costosas.
-
-La diferencia entre una empresa que solo almacena sus datos y una que los procesa en tiempo real es exactamente la diferencia entre SmartManuTech antes y después de este sistema.
-
----
-
-## 10. Bibliografía
+## 8. Bibliografía
 
 1. Kreps, J., Narkhede, N., Rao, J. (2011). *Kafka: A distributed messaging system for log processing*. LinkedIn Engineering Blog.
 

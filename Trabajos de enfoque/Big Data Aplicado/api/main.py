@@ -234,18 +234,41 @@ def listar_maquinas():
 @app.get("/metricas/resumen", response_model=ResumenSistema, tags=["Métricas"])
 def get_resumen():
     """Resumen global del sistema."""
+    total_anomalias = 0
+    total_lecturas = 0
+
+    # Contar anomalías desde Cassandra (tabla pequeña, más rápido)
     try:
         s = get_cassandra()
-        total_anomalias = s.execute("SELECT COUNT(*) FROM smartmanutech.anomalias").one()[0]
-        total_lecturas = s.execute("SELECT COUNT(*) FROM smartmanutech.lecturas").one()[0]
-        return ResumenSistema(
-            total_lecturas=int(total_lecturas),
-            total_anomalias=int(total_anomalias),
-            maquinas_monitorizadas=5,
-        )
+        row = s.execute(
+            "SELECT COUNT(*) FROM smartmanutech.anomalias"
+        ).one()
+        total_anomalias = int(row[0]) if row else 0
     except Exception as e:
-        logger.error(f"Error: {e}")
-        raise HTTPException(503, detail="Error en base de datos")
+        logger.warning(f"No se pudo contar anomalías en Cassandra: {e}")
+
+    # Contar lecturas desde InfluxDB (evita full table scan en Cassandra)
+    try:
+        flux = f"""
+            from(bucket: "{INFLUXDB_BUCKET}")
+              |> range(start: -30d)
+              |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+              |> filter(fn: (r) => r["_field"] == "temperatura")
+              |> count()
+              |> sum()
+        """
+        tables = get_influx().query_api().query(flux)
+        for table in tables:
+            for rec in table.records:
+                total_lecturas += int(rec.get_value() or 0)
+    except Exception as e:
+        logger.warning(f"No se pudo contar lecturas en InfluxDB: {e}")
+
+    return ResumenSistema(
+        total_lecturas=total_lecturas,
+        total_anomalias=total_anomalias,
+        maquinas_monitorizadas=5,
+    )
 
 
 @app.get("/metricas/serie-temporal", tags=["Métricas"])
